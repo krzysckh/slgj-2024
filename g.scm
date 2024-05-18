@@ -75,7 +75,7 @@
      (draw-line-simple v dgl:min v dgl:max white))
    (iota dgl:min grid-size dgl:max))) ;; assuming width == height
 
-(define (is-thing-portal? c)
+(define (portal? c)
   (or (and (>= c #\a) (<= c #\z))
       (and (>= c #\A) (<= c #\Z))))
 
@@ -88,7 +88,7 @@
 (define (draw-thing thing rect)
   (cond
    ((= thing #\=) (draw-rectangle rect blue))
-   ((is-thing-portal? thing) (draw-rectangle rect (portal-color thing)))
+   ((portal? thing) (draw-rectangle rect (portal-color thing)))
 
    ((has? draw-thing:skip thing) 0)
    (else
@@ -134,11 +134,12 @@
      camera-pos)))
 
 ;; TODO: particle w wątkach?
+;; TODO: R - restart
 
 ;; block player cannot move through
 (define nono-blocks (list #\=))
 
-(define (find-block pos blocks . skip-n)
+(define (dispatch-move:find-block pos blocks . skip-n)
   (let ((skip (if (null? skip-n) -1 (car skip-n))))
     (let loop ((n 0) (blocks blocks))
       (cond
@@ -147,29 +148,21 @@
        (else
         (loop (+ n 1) (cdr blocks)))))))
 
-(define (ppos-legal? ppos ∆ blocks skip-n)
+(define (dispatch-move:ppos-legal? ppos ∆ blocks skip-n)
   (let* ((x (car ppos))
          (y (cadr ppos))
          (ly (length Map))
-         (bat (find-block ppos blocks skip-n)))
+         (bat (dispatch-move:find-block ppos blocks skip-n)))
     (cond
      ((< y 0) blocks)
      ((< x 0) blocks)
      ((>= y (length Map)) blocks)
      ((>= x (length (list-ref Map y))) blocks) ;; overflowing list-ref
-     (bat (ppos-legal? (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) bat))
+     (bat (dispatch-move:ppos-legal?
+           (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) bat))
      ((has? nono-blocks (list-ref (list-ref Map y) x)) #f)
      (else
       blocks))))
-
-(define (maybe-portal ppos)
-  (let ((p (assoc ppos portals)))
-    (if p (cadr p) ppos)))
-
-(define (draw-blocks blocks)
-  (for-each
-   (λ (b) (draw-rectangle (real-p b) (list grid-size grid-size) darkbrown))
-   blocks))
 
 (define (dispatch-move:get-∆ q)
   (cond
@@ -185,7 +178,7 @@
 (define (dispatch-move pos q blocks)
   (lets ((q ∆ (dispatch-move:get-∆ q))
          (+∆ (vec2+ pos ∆))
-         (b (ppos-legal? +∆ ∆ blocks -1)))
+         (b (dispatch-move:ppos-legal? +∆ ∆ blocks -1)))
 
     (if b
         (values +∆ q b)
@@ -195,18 +188,27 @@
 ;; only queue move keys
 (define queue:keys (list key-a key-d key-w key-s))
 
-(define (keys-down)
+(define (queue:keys-down)
   (filter key-down? queue:keys))
 
 (define (queue:current-keys)
   (if (key-down? key-left-control)
-      (keys-down)
+      (queue:keys-down)
       (let loop ((kp (key-pressed)) (acc ()))
         (cond
          ((= kp 0) acc)
          ((has? queue:keys kp) (loop (key-pressed) (append acc (list kp))))
          (else
         (loop (key-pressed) acc))))))
+
+(define (maybe-portal ppos)
+  (let ((p (assoc ppos portals)))
+    (if p (cadr p) ppos)))
+
+(define (draw-blocks blocks)
+  (for-each
+   (λ (b) (draw-rectangle (real-p b) (list grid-size grid-size) darkbrown))
+   blocks))
 
 (define (main _)
   (set-target-fps! 30)
@@ -217,18 +219,23 @@
                 (camera-pos (real-p initial-player-pos))
                 (key-queue ())
                 (blocks initial-blocks)
+                (undo ())
                 (debug #f))
-
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (queue:current-keys)))
               (ppos key-queue blocks (dispatch-move ppos key-queue blocks))
               (ppos (maybe-portal ppos))
               (debug (if (key-pressed? key-g) (not debug) debug))
-              (camera camera-pos (camera ppos camera-pos)))
+              (camera camera-pos (camera ppos camera-pos))
+              ;; maybe do undo?
+              (ppos blocks undo (if (key-pressed? key-u)
+                                    (let ((lu (list-ref undo (max 0 (- (length undo) 2)))))
+                                      (values (car lu) (cadr lu) (ldel undo (- (length undo) 1))))
+                                    (values ppos blocks undo))))
          (draw
           (clear-background black)
           (when debug
-            (draw-text font (str* key-queue) '(0 0) 64 0 white))
+            (draw-text font (str* (length undo)) '(0 0) 64 0 white))
 
           (with-camera2d
            camera
@@ -240,8 +247,17 @@
              (draw-text font "helo" '(0 0) 64 0 white)))
           (draw-fps '(0 0)))
 
-         (if (window-should-close?)
-             0
-             (loop ppos camera-pos key-queue blocks debug)))))))
+         (let ((undo (if (equal? (last undo ()) (list ppos blocks))
+                         undo
+                         (append undo (list (list ppos blocks))))))
+           (if (window-should-close?)
+               0
+               (loop
+                ppos
+                camera-pos
+                key-queue
+                blocks
+                undo
+                debug))))))))
 
 main
