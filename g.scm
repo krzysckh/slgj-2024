@@ -6,7 +6,7 @@
  (raylib))
 
 (define font-f (list->bytevector (file->list "assets/proggy-square.ttf")))
-(define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_extra132.gif")))
+(define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_grounds32.gif")))
 (define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.gif")))
 
 ;; block player cannot move through
@@ -19,27 +19,33 @@
 (define (door-ending? c)
   (and (>= c #\A) (<= c #\Z)))
 
-;; (define (set-outside line)
-;;   (let loop ((x (- (length line) 1)) (n 1) (line line))
-;;     (print line ": " x)
-;;     (cond
-;;      ((< x 0) line)
-;;      ((or (has? nono-blocks (list-ref line x)) (door? (list-ref line x)))
-;;            (if (if (>= (+ x 1) (length line)) #t (not (has? nono-blocks (list-ref line (+ x 1)))))
-;;                (loop (- x 1) (+ n 1) line)
-;;                (loop (- x 1) n line)))
-;;      ((or (has? '(#\@ #\# #\space) (list-ref line x)) (door-ending? (list-ref line x)))
-;;       (if (even? n)
-;;           (loop (- x 1) n line)
-;;           (loop (- x 1) n (lset line x #\_))))
-;;      (else (error "fuck " (list-ref line x))))))
+(define (fix-length m ml)
+  (append m (make-list (- ml (length m)) #\space)))
+
+(define (floodfill-emptyness m pt)
+  (cond
+   ((< (car pt) 0) m)
+   ((< (cdr pt) 0) m)
+   ((>= (cdr pt) (length m)) m)
+   ((>= (car pt) (length (list-ref m (cdr pt)))) m)
+   ((not (= (list-ref (list-ref m (cdr pt)) (car pt)) #\space)) m)
+   (else
+    (let* ((m (lset m (cdr pt) (lset (list-ref m (cdr pt)) (car pt) #\_)))
+           (m (floodfill-emptyness m `(,(car pt) . ,(+ (cdr pt) 1))))
+           (m (floodfill-emptyness m `(,(car pt) . ,(- (cdr pt) 1))))
+           (m (floodfill-emptyness m `(,(- (car pt) 1) . ,(cdr pt))))
+           (m (floodfill-emptyness m `(,(+ (car pt) 1) . ,(cdr pt)))))
+      m))))
+
 
 ;; TODO: point-in-polygon every point to find where to draw floor textures
 (define (load-map f)
-  ;; (map set-outside
-       (map string->list (force-ll (lines (open-input-file "map.text"))))
-       ;; )
-  )
+  (let* ((m (map string->list (force-ll (lines (open-input-file "map.text")))))
+         (m (map (λ (l) (append '(#\space) l '(#\space))) m))
+         (ml (maxl (map length m)))
+         (m (map (λ (x) (fix-length x ml)) m))
+         (m (append (list (make-list ml #\space)) m (list (make-list ml #\space)))))
+    (floodfill-emptyness m '(0 . 0))))
 
 (define Map (load-map "map.text"))
 
@@ -107,7 +113,7 @@
   (* v grid-size))
 
 ;; real "point"
-;; pt → vec2
+;; pt → vec2
 (define (real-p v)
   (list (real-v (car v)) (real-v (cadr v))))
 
@@ -142,13 +148,13 @@
    '(0 0)
    0 white))
 
-(define draw-thing:skip (list))
+(define draw-thing:skip '(#\_))
 
 (define (draw-thing thing rect textures)
   (cond
    ((or (= thing #\space) (= thing #\@)
         (door-ending? thing) (= thing #\#))
-    (draw-rectangle rect black)) ;; TODO: darken this (draw-tile (cadr (assq 'door textures)) '(3 6) rect (λ (v)
+    (draw-tile (cadr (assq 'bg textures)) '(8 0) rect))
    ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(0 0) rect))
    ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
    ((door? thing) (draw-tile (cadr (assq 'door textures)) (door-tile thing) rect))
@@ -256,9 +262,16 @@
   (let ((p (assoc ppos doors)))
     (if p (cadr p) ppos)))
 
-(define (draw-blocks blocks)
+(define (draw-blocks blocks textures)
   (for-each
-   (λ (b) (draw-rectangle (real-p b) (list grid-size grid-size) darkbrown))
+   (λ (b)
+     (draw-tile
+      (cadr (assq 'bg textures))
+      '(0 18)
+      (list (+ 4 (real-v (car b)))
+            (+ 4 (real-v (cadr b)))
+            (- grid-size 8)
+            (- grid-size 8))))
    blocks))
 
 (define (draw-background-textures txts)
@@ -308,9 +321,14 @@
            (begin ;; TODO: ugly hack - fix with-camera2d macro
              (when debug (draw-grid-lines))
              (draw-map textures)
-             (draw-blocks blocks)
+             (draw-blocks blocks textures)
              (draw-player ppos)
              (draw-text font "helo" '(0 0) 64 0 white)))
+
+          ;; the shadow thingy
+          (draw-rectangle
+           `(0 0 ,width ,height)
+           (color 0 0 0 (max 0 (- (floor (/ (vec2dist (real-p ppos) camera-pos) 4)) 25))))
           (draw-fps '(0 0)))
 
          (let ((undo (if (equal? (last undo ()) (list ppos blocks))
