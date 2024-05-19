@@ -5,7 +5,45 @@
  (owl lazy)
  (raylib))
 
-(define font-f (list->bytevector (file->list "proggy-square.ttf")))
+(define font-f (list->bytevector (file->list "assets/proggy-square.ttf")))
+(define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_extra132.gif")))
+(define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.gif")))
+
+;; block player cannot move through
+(define nono-blocks    (list #\= #\|))
+(define replace-blocks (list #\= #\space))
+
+(define (door? c)
+  (and (>= c #\a) (<= c #\z)))
+
+(define (door-ending? c)
+  (and (>= c #\A) (<= c #\Z)))
+
+;; (define (set-outside line)
+;;   (let loop ((x (- (length line) 1)) (n 1) (line line))
+;;     (print line ": " x)
+;;     (cond
+;;      ((< x 0) line)
+;;      ((or (has? nono-blocks (list-ref line x)) (door? (list-ref line x)))
+;;            (if (if (>= (+ x 1) (length line)) #t (not (has? nono-blocks (list-ref line (+ x 1)))))
+;;                (loop (- x 1) (+ n 1) line)
+;;                (loop (- x 1) n line)))
+;;      ((or (has? '(#\@ #\# #\space) (list-ref line x)) (door-ending? (list-ref line x)))
+;;       (if (even? n)
+;;           (loop (- x 1) n line)
+;;           (loop (- x 1) n (lset line x #\_))))
+;;      (else (error "fuck " (list-ref line x))))))
+
+;; TODO: point-in-polygon every point to find where to draw floor textures
+(define (load-map f)
+  ;; (map set-outside
+       (map string->list (force-ll (lines (open-input-file "map.text"))))
+       ;; )
+  )
+
+(define Map (load-map "map.text"))
+
+(map print (map list->string Map))
 
 (define width 640)
 (define height width)
@@ -17,7 +55,18 @@
 
 (define maybe-error-fatal #t)
 
-(define Map (map string->list (force-ll (lines (open-input-file "map.text")))))
+(define doors-open
+  '((4 0) (5 0) (7 0)
+    (1 1) (2 1) (4 1) (5 1) (6 1) (7 1)
+    (0 2) (1 2) (3 2) (4 2)
+    (4 3) (5 3) (7 3) (8 3)
+    (1 4) (2 4) (3 4) (4 4) (5 4) (6 4)))
+
+(define doors-closed
+  '((3 0)
+    (0 1) (3 1)
+    (3 3) (6 3)
+    (0 4) (3 4) (6 4)))
 
 (define (find-thing c)
   (let loop ((x 0) (y 0))
@@ -39,11 +88,10 @@
      (else
       (loop (+ x 1) y acc)))))
 
-(define portals (map (λ (v) (list (find-thing v) (find-thing (- v 32))))
+(define doors (map (λ (v) (list (find-thing v) (find-thing (- v 32))))
                      (filter find-thing (iota #\a 1 (+ #\z 1)))))
 
 (define initial-blocks (find-things #\#))
-(print initial-blocks)
 
 (define (maybe-error s . l)
   (print "maybe-error: " s)
@@ -53,9 +101,15 @@
   (when maybe-error-fatal
     (exit-owl 1)))
 
-(define possible-portal-colors
-  (list yellow pink lime skyblue orange green purple
-        beige gold brown violet white magenta))
+;; real "value"
+;; vp → v
+(define (real-v v)
+  (* v grid-size))
+
+;; real "point"
+;; pt → vec2
+(define (real-p v)
+  (list (real-v (car v)) (real-v (cadr v))))
 
 ;; (define (flatten x)
 ;;   (cond
@@ -75,45 +129,45 @@
      (draw-line-simple v dgl:min v dgl:max white))
    (iota dgl:min grid-size dgl:max))) ;; assuming width == height
 
-(define (portal? c)
-  (or (and (>= c #\a) (<= c #\z))
-      (and (>= c #\A) (<= c #\Z))))
+(define (door-tile c)
+  (list-ref doors-open (modulo (- c #\a) (length doors-open))))
 
-(define (portal-color c)
-  (list-ref possible-portal-colors
-            (modulo (if (>= c #\a) (- c #\a) (- c #\A)) (length possible-portal-colors))))
+;; assuming tile-size = 32
+;; texture (tile-x tile-y) fin-rect
+(define (draw-tile txt tile rect)
+  (draw-texture-pro
+   txt
+   (list (* 32 (car tile)) (* 32 (cadr tile)) 32 32)
+   rect
+   '(0 0)
+   0 white))
 
-(define draw-thing:skip (list #\space #\@ #\#))
+(define draw-thing:skip (list))
 
-(define (draw-thing thing rect)
+(define (draw-thing thing rect textures)
   (cond
-   ((= thing #\=) (draw-rectangle rect blue))
-   ((portal? thing) (draw-rectangle rect (portal-color thing)))
+   ((or (= thing #\space) (= thing #\@)
+        (door-ending? thing) (= thing #\#))
+    (draw-rectangle rect black)) ;; TODO: darken this (draw-tile (cadr (assq 'door textures)) '(3 6) rect (λ (v)
+   ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(0 0) rect))
+   ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
+   ((door? thing) (draw-tile (cadr (assq 'door textures)) (door-tile thing) rect))
+   ((and (>= thing #\A) (<= thing #\Z)) 0)
 
    ((has? draw-thing:skip thing) 0)
    (else
     (maybe-error "cannot draw-thing" (string thing)))))
 
 (define iota-length-map (iota 0 1 (length Map)))
-(define (draw-map)
+(define (draw-map textures)
   (for-each
    (λ (n)
      (let ((line (list-ref Map n))
            (y (* grid-size n)))
        (for-each
-        (λ (v) (draw-thing (list-ref line v) (list (* grid-size v) y grid-size grid-size)))
+        (λ (v) (draw-thing (list-ref line v) (list (* grid-size v) y grid-size grid-size) textures))
         (iota 0 1 (length line)))))
    iota-length-map))
-
-;; real "value"
-;; vp → v
-(define (real-v v)
-  (* v grid-size))
-
-;; real "point"
-;; pt → vec2
-(define (real-p v)
-  (list (real-v (car v)) (real-v (cadr v))))
 
 (define (draw-player pos)
   (draw-rectangle-rounded
@@ -135,9 +189,6 @@
 
 ;; TODO: particle w wątkach?
 ;; TODO: R - restart
-
-;; block player cannot move through
-(define nono-blocks (list #\=))
 
 (define (dispatch-move:find-block pos blocks . skip-n)
   (let ((skip (if (null? skip-n) -1 (car skip-n))))
@@ -201,8 +252,8 @@
          (else
         (loop (key-pressed) acc))))))
 
-(define (maybe-portal ppos)
-  (let ((p (assoc ppos portals)))
+(define (maybe-door ppos)
+  (let ((p (assoc ppos doors)))
     (if p (cadr p) ppos)))
 
 (define (draw-blocks blocks)
@@ -210,11 +261,25 @@
    (λ (b) (draw-rectangle (real-p b) (list grid-size grid-size) darkbrown))
    blocks))
 
+(define (draw-background-textures txts)
+  (for-each
+   (λ (y)
+     (for-each
+      (λ (x)
+        (draw-tile (cadr (assq 'door txts)) '(2 0) (list x y grid-size grid-size)))
+      (iota 0 grid-size width)))
+   (iota 0 grid-size height)))
+
 (define (main _)
   (set-target-fps! 30)
   (with-window
    width height "λ-test"
-   (let ((font (list->font (bytevector->list font-f) ".ttf" 64 1024)))
+   (let* ((font (list->font (bytevector->list font-f) ".ttf" 64 1024))
+          (door-tiles (image->texture (list->image ".gif" (bytevector->list door-f))))
+          (bg-tiles   (image->texture (list->image ".gif" (bytevector->list bg-f))))
+          (textures `((bg   ,bg-tiles)
+                      (door ,door-tiles))))
+     (for-each (λ (t) (set-texture-filter! (cadr t) texture-filter-bilinear)) textures)
      (let loop ((ppos initial-player-pos)
                 (camera-pos (real-p initial-player-pos))
                 (key-queue ())
@@ -224,7 +289,7 @@
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (queue:current-keys)))
               (ppos key-queue blocks (dispatch-move ppos key-queue blocks))
-              (ppos (maybe-portal ppos))
+              (ppos (maybe-door ppos))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
@@ -234,6 +299,7 @@
                                     (values ppos blocks undo))))
          (draw
           (clear-background black)
+          (draw-background-textures textures)
           (when debug
             (draw-text font (str* (length undo)) '(0 0) 64 0 white))
 
@@ -241,7 +307,7 @@
            camera
            (begin ;; TODO: ugly hack - fix with-camera2d macro
              (when debug (draw-grid-lines))
-             (draw-map)
+             (draw-map textures)
              (draw-blocks blocks)
              (draw-player ppos)
              (draw-text font "helo" '(0 0) 64 0 white)))
