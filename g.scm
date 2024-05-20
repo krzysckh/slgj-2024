@@ -3,11 +3,14 @@
 (import
  (owl toplevel)
  (owl lazy)
+ (owl random)
  (raylib))
 
 (define font-f (list->bytevector (file->list "assets/proggy-square.ttf")))
 (define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_grounds32.gif")))
 (define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.gif")))
+
+(define additional-rand-blocks '((5 8) (8 8)))
 
 ;; block player cannot move through
 (define nono-blocks    (list #\= #\|))
@@ -22,12 +25,34 @@
 (define (fix-length m ml)
   (append m (make-list (- ml (length m)) #\space)))
 
+(define rand-block-% 20)
+(define (add-random-blocks m)
+  (letrec ((f (λ (r line acc)
+                (cond
+                 ((null? line) (values r acc))
+                 ((= (car line) #\=)
+                  (lets ((R (/ rand-block-% 100))
+                         (r v (rand-range r (- (numerator R) 1) (denominator R))))
+                    (if (= v (numerator R))
+                        (lets ((r v (rand-range r 0 (length additional-rand-blocks))))
+                          (f r (cdr line)
+                             (append acc (list (lref additional-rand-blocks v)))))
+                        (f r (cdr line) (append acc (list (car line)))))))
+                 (else
+                  (f r (cdr line) (append acc (list (car line)))))))))
+    (let loop ((r (seed->rands (time-ms))) (m m) (acc ()))
+      (if (null? m)
+          acc
+          (lets ((r l (f r (car m) ())))
+            (loop r (cdr m) (append acc (list l))))))))
+
 (define (floodfill-emptyness m pt)
   (cond
    ((< (car pt) 0) m)
    ((< (cdr pt) 0) m)
    ((>= (cdr pt) (length m)) m)
    ((>= (car pt) (length (list-ref m (cdr pt)))) m)
+   ((list? (list-ref (list-ref m (cdr pt)) (car pt))) m)
    ((not (= (list-ref (list-ref m (cdr pt)) (car pt)) #\space)) m)
    (else
     (let* ((m (lset m (cdr pt) (lset (list-ref m (cdr pt)) (car pt) #\_)))
@@ -37,19 +62,19 @@
            (m (floodfill-emptyness m `(,(+ (car pt) 1) . ,(cdr pt)))))
       m))))
 
-
 ;; TODO: point-in-polygon every point to find where to draw floor textures
 (define (load-map f)
   (let* ((m (map string->list (force-ll (lines (open-input-file "map.text")))))
          (m (map (λ (l) (append '(#\space) l '(#\space))) m))
          (ml (maxl (map length m)))
-         (m (map (λ (x) (fix-length x ml)) m))
-         (m (append (list (make-list ml #\space)) m (list (make-list ml #\space)))))
+         (m (map (λ (x) (fix-length x ml)) m)) ;
+         (m (append (list (make-list ml #\space)) m (list (make-list ml #\space))))
+         (m (add-random-blocks m)))
     (floodfill-emptyness m '(0 . 0))))
 
 (define Map (load-map "map.text"))
 
-(map print (map list->string Map))
+(map print (map list->string (map (λ (l) (map (λ (x) (if (list? x) #\= x)) l)) Map)))
 
 (define width 640)
 (define height width)
@@ -152,10 +177,12 @@
 
 (define (draw-thing thing rect textures)
   (cond
+   ((list? thing)
+    (draw-tile (cadr (assq 'door textures)) thing rect))
    ((or (= thing #\space) (= thing #\@)
         (door-ending? thing) (= thing #\#))
     (draw-tile (cadr (assq 'bg textures)) '(8 0) rect))
-   ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(0 0) rect))
+   ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(2 3) rect))
    ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
    ((door? thing) (draw-tile (cadr (assq 'door textures)) (door-tile thing) rect))
    ((and (>= thing #\A) (<= thing #\Z)) 0)
@@ -215,6 +242,7 @@
      ((< x 0) blocks)
      ((>= y (length Map)) blocks)
      ((>= x (length (list-ref Map y))) blocks) ;; overflowing list-ref
+     ((list? (list-ref (list-ref Map y) x)) #f)
      (bat (dispatch-move:ppos-legal?
            (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) bat))
      ((has? nono-blocks (list-ref (list-ref Map y) x)) #f)
