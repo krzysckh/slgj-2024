@@ -93,11 +93,13 @@
     (4 3) (5 3) (7 3) (8 3)
     (1 4) (2 4) (3 4) (4 4) (5 4) (6 4)))
 
-(define doors-closed
-  '((3 0)
-    (0 1) (3 1)
-    (3 3) (6 3)
-    (0 4) (3 4) (6 4)))
+;; TODO: closed doors + keys
+
+;; (define doors-closed
+;;   '((3 0)
+;;     (0 1) (3 1)
+;;     (3 3) (6 3)
+;;     (0 4) (3 4) (6 4)))
 
 (define (find-thing c)
   (let loop ((x 0) (y 0))
@@ -119,8 +121,33 @@
      (else
       (loop (+ x 1) y acc)))))
 
-(define doors (map (λ (v) (list (find-thing v) (find-thing (- v 32))))
-                     (filter find-thing (iota #\a 1 (+ #\z 1)))))
+(define doors-all
+  (map (λ (c)
+         (let ((p0 (find-things c))
+               (p1 (find-things (- c 32))))
+           (if (or (null? p0) (null? p1))
+               ()
+               (let ((t0 (if (> (vec2dist (car p0) (car p1))
+                                (vec2dist (car p0) (cadr p1)))
+                             (list (car p0) (car p1))
+                             (list (car p0) (cadr p1))))
+
+                     (t1 (if (> (vec2dist (cadr p0) (car p1))
+                                (vec2dist (cadr p0) (cadr p1)))
+                             (list (cadr p0) (car p1))
+                             (list (cadr p0) (cadr p1)))))
+                 (list t0 t1)))))
+       (iota #\a 1 (+ #\z 1))))
+
+(define doors
+  (let loop ((d doors-all) (acc ()))
+    (cond
+     ((null? d) acc)
+     ((null? (car d)) (loop (cdr d) acc))
+     (else
+      (loop (cdr d) (append acc (list (caar d)) (list (cadar d))))))))
+
+(print "door wormholes: " doors)
 
 (define initial-blocks (find-things #\#))
 
@@ -183,7 +210,7 @@
         (door-ending? thing) (= thing #\#))
     (draw-tile (cadr (assq 'bg textures)) '(8 0) rect))
    ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(2 3) rect))
-   ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
+   ;; ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
    ((door? thing) (draw-tile (cadr (assq 'door textures)) (door-tile thing) rect))
    ((and (>= thing #\A) (<= thing #\Z)) 0)
 
@@ -356,7 +383,7 @@
           ;; the shadow thingy
           (draw-rectangle
            `(0 0 ,width ,height)
-           (color 0 0 0 (max 0 (- (floor (/ (vec2dist (real-p ppos) camera-pos) 4)) 25))))
+           (color 0 0 0 (clamp 0 255 (- (floor (/ (vec2dist (real-p ppos) camera-pos) 4)) 25))))
           (draw-fps '(0 0)))
 
          (let ((undo (if (equal? (last undo ()) (list ppos blocks))

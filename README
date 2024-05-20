@@ -1,1 +1,13 @@
 okay alright
+
+Map format:
+
+char     description
+
+_        background (no block at all)
+=        level border (may be drawn as a fancy textured block)
+(space)  level space | background (will get floodfilled with bg at
+         compile-time)
+A|a      doors: uppercase = where to TP, lowercase = from where to tp +
+         where to draw the door texture.
+#        movable box

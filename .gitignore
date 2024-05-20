@@ -1,2 +1,9 @@
 *.~undo-tree~
 .#*
+*.exe
+*.html
+*.c
+*.js
+*.wasm
+*-linux-gnu
+*.a
