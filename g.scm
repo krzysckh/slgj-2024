@@ -22,6 +22,24 @@
 (define (door-ending? c)
   (and (>= c #\A) (<= c #\Z)))
 
+;; drawme format: (drawme sym texture-x texture-y)
+(define (drawme? thing)
+  (if (symbol? (car* thing))
+      (eqv? (car* thing) 'drawme)
+      #f))
+
+;; button
+(define (button? thing)
+  (if (symbol? (car* thing))
+      (eqv? (car* thing) 'btn)
+      #f))
+
+;; button-target
+(define (button-target? thing)
+  (if (symbol? (car* thing))
+      (eqv? (car* thing) 'btn-target)
+      #f))
+
 (define (fix-length m ml)
   (append m (make-list (- ml (length m)) #\space)))
 
@@ -36,7 +54,7 @@
                     (if (= v (numerator R))
                         (lets ((r v (rand-range r 0 (length additional-rand-blocks))))
                           (f r (cdr line)
-                             (append acc (list (lref additional-rand-blocks v)))))
+                             (append acc (list (append '(drawme door) (lref additional-rand-blocks v))))))
                         (f r (cdr line) (append acc (list (car line)))))))
                  (else
                   (f r (cdr line) (append acc (list (car line)))))))))
@@ -51,16 +69,26 @@
    ((< (car pt) 0) m)
    ((< (cdr pt) 0) m)
    ((>= (cdr pt) (length m)) m)
-   ((>= (car pt) (length (list-ref m (cdr pt)))) m)
-   ((list? (list-ref (list-ref m (cdr pt)) (car pt))) m)
-   ((not (= (list-ref (list-ref m (cdr pt)) (car pt)) #\space)) m)
+   ((>= (car pt) (length (lref m (cdr pt)))) m)
+   ((list? (lref (lref m (cdr pt)) (car pt))) m)
+   ((not (= (lref (lref m (cdr pt)) (car pt)) #\space)) m)
    (else
-    (let* ((m (lset m (cdr pt) (lset (list-ref m (cdr pt)) (car pt) #\_)))
+    (let* ((m (lset m (cdr pt) (lset (lref m (cdr pt)) (car pt) #\_)))
            (m (floodfill-emptyness m `(,(car pt) . ,(+ (cdr pt) 1))))
            (m (floodfill-emptyness m `(,(car pt) . ,(- (cdr pt) 1))))
            (m (floodfill-emptyness m `(,(- (car pt) 1) . ,(cdr pt))))
            (m (floodfill-emptyness m `(,(+ (car pt) 1) . ,(cdr pt)))))
       m))))
+
+(define (find-buttons l)
+  (let loop ((l l) (acc ()))
+    (cond
+     ((null? l) acc)
+     ((list? (car l)) (loop (cdr l) (append acc (list (car l)))))
+     ((= (car l) #\.) (loop (cddr l) (append acc (list `(btn ,(cadr l))))))
+     ((= (car l) #\|) (loop (cddr l) (append acc (list `(btn-target ,(cadr l))))))
+     (else
+      (loop (cdr l) (append acc (list (car l))))))))
 
 ;; TODO: point-in-polygon every point to find where to draw floor textures
 (define (load-map f)
@@ -69,8 +97,10 @@
          (ml (maxl (map length m)))
          (m (map (λ (x) (fix-length x ml)) m)) ;
          (m (append (list (make-list ml #\space)) m (list (make-list ml #\space))))
-         (m (add-random-blocks m)))
-    (floodfill-emptyness m '(0 . 0))))
+         (m (add-random-blocks m))
+         (m (map find-buttons m))
+         (m (floodfill-emptyness m '(0 . 0))))
+    m))
 
 (define Map (load-map "map.text"))
 
@@ -101,25 +131,21 @@
 ;;     (3 3) (6 3)
 ;;     (0 4) (3 4) (6 4)))
 
-(define (find-thing c)
-  (let loop ((x 0) (y 0))
-    (cond
-     ((>= y (length Map)) #f)
-     ((>= x (length (list-ref Map y))) (loop 0 (+ y 1)))
-     ((eqv? (list-ref (list-ref Map y) x) c) (list x y))
-     (else
-      (lets ((x (+ x 1))
-             (x y (if (>= x (length (list-ref Map y))) (values 0 (+ y 1)) (values x y))))
-        (loop x y))))))
-
+;; c = char | (f(x) → #t|#f) → (...)
 (define (find-things c)
-  (let loop ((x 0) (y 0) (acc ()))
-    (cond
-     ((>= y (length Map)) acc)
-     ((>= x (length (list-ref Map y))) (loop 0 (+ y 1) acc))
-     ((eqv? (list-ref (list-ref Map y) x) c) (loop (+ x 1) y (append acc (list (list x y)))))
-     (else
-      (loop (+ x 1) y acc)))))
+  (let ((f (if (function? c)
+               c
+               (λ (x) (eqv? x c)))))
+    (let loop ((x 0) (y 0) (acc ()))
+      (cond
+       ((>= y (length Map)) acc)
+       ((>= x (length (lref Map y))) (loop 0 (+ y 1) acc))
+       ((f (lref (lref Map y) x)) (loop (+ x 1) y (append acc (list (list x y)))))
+       (else
+        (loop (+ x 1) y acc))))))
+
+(define (find-thing c)
+  (car (find-things c)))
 
 (define doors-all
   (map (λ (c)
@@ -147,9 +173,13 @@
      (else
       (loop (cdr d) (append acc (list (caar d)) (list (cadar d))))))))
 
-(print "door wormholes: " doors)
-
 (define initial-blocks (find-things #\#))
+(define initial-button-states
+  (map (λ (v) (list (cadr (lref (lref Map (cadr v)) (car v))) v #f))
+       (find-things button?))) ;; #f = unpressed
+
+(print "door wormholes: " doors)
+(print "initial-button-states: " initial-button-states)
 
 (define (maybe-error s . l)
   (print "maybe-error: " s)
@@ -188,7 +218,7 @@
    (iota dgl:min grid-size dgl:max))) ;; assuming width == height
 
 (define (door-tile c)
-  (list-ref doors-open (modulo (- c #\a) (length doors-open))))
+  (lref doors-open (modulo (- c #\a) (length doors-open))))
 
 ;; assuming tile-size = 32
 ;; texture (tile-x tile-y) fin-rect
@@ -204,8 +234,14 @@
 
 (define (draw-thing thing rect textures)
   (cond
-   ((list? thing)
-    (draw-tile (cadr (assq 'door textures)) thing rect))
+   ((drawme? thing)
+    (draw-tile (cadr (assq (lref thing 1) textures)) (cddr thing) rect))
+   ((button? thing)
+    (draw-rectangle rect pink))
+   ((button-target? thing)
+    (draw-rectangle rect orange))
+   ((list? thing) ;; catch-all list error thinghy
+    (maybe-error "cannot draw-thing" thing))
    ((or (= thing #\space) (= thing #\@)
         (door-ending? thing) (= thing #\#))
     (draw-tile (cadr (assq 'bg textures)) '(8 0) rect))
@@ -222,10 +258,10 @@
 (define (draw-map textures)
   (for-each
    (λ (n)
-     (let ((line (list-ref Map n))
+     (let ((line (lref Map n))
            (y (* grid-size n)))
        (for-each
-        (λ (v) (draw-thing (list-ref line v) (list (* grid-size v) y grid-size grid-size) textures))
+        (λ (v) (draw-thing (lref line v) (list (* grid-size v) y grid-size grid-size) textures))
         (iota 0 1 (length line)))))
    iota-length-map))
 
@@ -259,7 +295,13 @@
        (else
         (loop (+ n 1) (cdr blocks)))))))
 
-(define (dispatch-move:ppos-legal? ppos ∆ blocks skip-n)
+(define (dispatch-move:button-door-open? ppos buttons)
+  (let* ((x (car ppos))
+         (y (cadr ppos))
+         (v (assoc (cadr (lref (lref Map y) x)) buttons)))
+    (caddr v)))
+
+(define (dispatch-move:ppos-legal? ppos ∆ blocks buttons skip-n)
   (let* ((x (car ppos))
          (y (cadr ppos))
          (ly (length Map))
@@ -268,11 +310,14 @@
      ((< y 0) blocks)
      ((< x 0) blocks)
      ((>= y (length Map)) blocks)
-     ((>= x (length (list-ref Map y))) blocks) ;; overflowing list-ref
-     ((list? (list-ref (list-ref Map y) x)) #f)
+     ((>= x (length (lref Map y))) blocks) ;; overflowing lref
      (bat (dispatch-move:ppos-legal?
-           (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) bat))
-     ((has? nono-blocks (list-ref (list-ref Map y) x)) #f)
+           (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) buttons bat))
+     ((button? (lref (lref Map y) x)) blocks)
+     ((button-target? (lref (lref Map y) x))
+      (if (dispatch-move:button-door-open? ppos buttons) blocks #f))
+     ((list? (lref (lref Map y) x)) #f)
+     ((has? nono-blocks (lref (lref Map y) x)) #f)
      (else
       blocks))))
 
@@ -286,15 +331,19 @@
    (else
     (values q (list 0 0)))))
 
+(define (dispatch-move:update-buttons buttons pos blocks)
+  (let ((poss (append blocks (list pos))))
+    (map (λ (b) (list (car b) (cadr b) (has? poss (cadr b)))) buttons)))
+
 ;; pos q blocks → (values q blocks delta-pos)
-(define (dispatch-move pos q blocks)
+(define (dispatch-move pos q blocks buttons)
   (lets ((q ∆ (dispatch-move:get-∆ q))
          (+∆ (vec2+ pos ∆))
-         (b (dispatch-move:ppos-legal? +∆ ∆ blocks -1)))
-
+         (b (dispatch-move:ppos-legal? +∆ ∆ blocks buttons -1))
+         (btns (dispatch-move:update-buttons buttons pos blocks)))
     (if b
-        (values +∆ q b)
-        (values pos q blocks)
+        (values +∆ q b btns)
+        (values pos q blocks buttons)
         )))
 
 ;; only queue move keys
@@ -352,24 +401,23 @@
                 (camera-pos (real-p initial-player-pos))
                 (key-queue ())
                 (blocks initial-blocks)
+                (buttons initial-button-states)
                 (undo ())
                 (debug #f))
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (queue:current-keys)))
-              (ppos key-queue blocks (dispatch-move ppos key-queue blocks))
+              (ppos key-queue blocks buttons (dispatch-move ppos key-queue blocks buttons))
               (ppos (maybe-door ppos))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
               (ppos blocks undo (if (key-pressed? key-u)
-                                    (let ((lu (list-ref undo (max 0 (- (length undo) 2)))))
+                                    (let ((lu (lref undo (max 0 (- (length undo) 2)))))
                                       (values (car lu) (cadr lu) (ldel undo (- (length undo) 1))))
                                     (values ppos blocks undo))))
          (draw
           (clear-background black)
           (draw-background-textures textures)
-          (when debug
-            (draw-text font (str* (length undo)) '(0 0) 64 0 white))
 
           (with-camera2d
            camera
@@ -379,6 +427,9 @@
              (draw-blocks blocks textures)
              (draw-player ppos)
              (draw-text font "helo" '(0 0) 64 0 white)))
+
+          (when debug
+            (draw-text font (str* buttons) '(0 0) 32 0 white))
 
           ;; the shadow thingy
           (draw-rectangle
@@ -396,6 +447,7 @@
                 camera-pos
                 key-queue
                 blocks
+                buttons
                 undo
                 debug))))))))
 
