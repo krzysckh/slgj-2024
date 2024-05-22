@@ -9,6 +9,9 @@
 (define font-f (list->bytevector (file->list "assets/proggy-square.ttf")))
 (define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_grounds32.gif")))
 (define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.gif")))
+(define snd-btndown-f (list->bytevector (file->list "assets/btndown.wav")))
+(define snd-mvblock-f (list->bytevector (file->list "assets/blockmove.wav")))
+(define snd-undo-f    (list->bytevector (file->list "assets/undo.wav")))
 
 (define additional-rand-blocks '((5 8) (8 8)))
 
@@ -331,16 +334,24 @@
    (else
     (values q (list 0 0)))))
 
-(define (dispatch-move:update-buttons buttons pos blocks)
+(define (dispatch-move:update-buttons buttons pos blocks sounds)
   (let ((poss (append blocks (list pos))))
-    (map (λ (b) (list (car b) (cadr b) (has? poss (cadr b)))) buttons)))
+    (map (λ (b)
+           (let ((pressed? (has? poss (cadr b)))
+                 (was-pressed? (caddr b)))
+             (when (and (not was-pressed?) pressed?)
+               (play-sound (cdr (assq 'btndown sounds))))
+             (list (car b) (cadr b) pressed?)))
+         buttons)))
 
 ;; pos q blocks → (values q blocks delta-pos)
-(define (dispatch-move pos q blocks buttons)
+(define (dispatch-move pos q blocks buttons sounds)
   (lets ((q ∆ (dispatch-move:get-∆ q))
          (+∆ (vec2+ pos ∆))
          (b (dispatch-move:ppos-legal? +∆ ∆ blocks buttons -1))
-         (btns (dispatch-move:update-buttons buttons pos blocks)))
+         (btns (dispatch-move:update-buttons buttons pos blocks sounds)))
+    (when (and b (not (equal? blocks b)))
+      (play-sound (cdr (assq 'mvblock sounds))))
     (if b
         (values +∆ q b btns)
         (values pos q blocks buttons)
@@ -387,13 +398,25 @@
       (iota 0 grid-size width)))
    (iota 0 grid-size height)))
 
+;; (play-sound (wave->sound (bytevector->wave ".wav" snd-btndown-f))))
+
+(define (load-sounds)
+  (let ((snd-btndown (wave->sound (bytevector->wave ".wav" snd-btndown-f)))
+        (snd-mvblock (wave->sound (bytevector->wave ".wav" snd-mvblock-f)))
+        (snd-undo    (wave->sound (bytevector->wave ".wav" snd-undo-f))))
+    `((btndown . ,snd-btndown)
+      (mvblock . ,snd-mvblock)
+      (undo    . ,snd-undo))))
+
 (define (main _)
   (set-target-fps! 30)
   (with-window
    width height "λ-test"
-   (let* ((font (list->font (bytevector->list font-f) ".ttf" 64 1024))
-          (door-tiles (image->texture (list->image ".gif" (bytevector->list door-f))))
-          (bg-tiles   (image->texture (list->image ".gif" (bytevector->list bg-f))))
+   (let* ((_ (init-audio-device)) ;; lol!
+          (font (bytevector->font font-f ".ttf" 64 1024))
+          (door-tiles (image->texture (list->image ".gif" door-f)))
+          (bg-tiles   (image->texture (list->image ".gif" bg-f)))
+          (sounds (load-sounds))
           (textures `((bg   ,bg-tiles)
                       (door ,door-tiles))))
      (for-each (λ (t) (set-texture-filter! (cadr t) texture-filter-bilinear)) textures)
@@ -406,13 +429,14 @@
                 (debug #f))
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (queue:current-keys)))
-              (ppos key-queue blocks buttons (dispatch-move ppos key-queue blocks buttons))
+              (ppos key-queue blocks buttons (dispatch-move ppos key-queue blocks buttons sounds))
               (ppos (maybe-door ppos))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
               (ppos blocks undo (if (key-pressed? key-u)
                                     (let ((lu (lref undo (max 0 (- (length undo) 2)))))
+                                      (play-sound (cdr (assq 'undo sounds)))
                                       (values (car lu) (cadr lu) (ldel undo (- (length undo) 1))))
                                     (values ppos blocks undo))))
          (draw
