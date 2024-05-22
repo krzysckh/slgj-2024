@@ -6,6 +6,7 @@ set -xe
 [ -f libraylib5-winlegacy.a ] || wget https://pub.krzysckh.org/libraylib5-winlegacy.a
 [ -f libraylib5.a ] || wget https://pub.krzysckh.org/libraylib5.a
 [ -f libraylib5-web.a ] || wget https://pub.krzysckh.org/libraylib5-web.a
+[ -f ol-rl-x86_64-linux-gnu ] || wget https://pub.krzysckh.org/ol-rl-x86_64-linux-gnu
 
 MAIN="g.scm"
 TARGET="slgj2024"
@@ -46,7 +47,8 @@ build_mingw() {
 }
 
 build_web() {
-  ol-rl $OLFLAGS -o g.c $MAIN
+  chmod +x ./ol-rl-x86_64-linux-gnu
+  ./ol-rl-x86_64-linux-gnu $OLFLAGS -o g.c $MAIN
   ARCH=`emcc -dumpmachine`
   emcc -O1 -DPLATFORM_WEB -I/usr/local/include g.c \
        libraylib5-web.a -o $TARGET-$ARCH.html \
