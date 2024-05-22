@@ -1,4 +1,4 @@
-name: ol-rl
+name: build windows and web versions.
 on: push
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
         shell: bash
         run: |
           sudo dpkg --add-architecture i386
-          sudo apt install -y wine
+          sudo apt install -y wine wine32
       - name: Build slgj-2024
         shell: bash
         run: |
