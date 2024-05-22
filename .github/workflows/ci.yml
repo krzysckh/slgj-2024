@@ -19,11 +19,7 @@ jobs:
           sudo add-apt-repository universe
           sudo dpkg --add-architecture i386
           sudo apt update
-      - name: Setup and cache wine
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: wine wine32
-          version: 1.0
+          sudo apt install -y wine wine32
       - name: Setup raylib
         shell: bash
         run: |
