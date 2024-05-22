@@ -58,7 +58,7 @@ build_web() {
   mv "$TARGET-$ARCH.zip" build/
 }
 
-build_local
+# build_local
 build_mingw32
 build_mingw
 build_web
