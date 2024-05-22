@@ -8,7 +8,9 @@
 
 (define font-f (list->bytevector (file->list "assets/proggy-square.ttf")))
 (define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_grounds32.gif")))
-(define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.gif")))
+(define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.png")))
+(define edg-f  (list->bytevector (file->list "assets/AngbandTk/dg_edging232.png")))
+
 (define snd-btndown-f (list->bytevector (file->list "assets/btndown.wav")))
 (define snd-mvblock-f (list->bytevector (file->list "assets/blockmove.wav")))
 (define snd-undo-f    (list->bytevector (file->list "assets/undo.wav")))
@@ -124,7 +126,7 @@
     (1 1) (2 1) (4 1) (5 1) (6 1) (7 1)
     (0 2) (1 2) (3 2) (4 2)
     (4 3) (5 3) (7 3) (8 3)
-    (1 4) (2 4) (3 4) (4 4) (5 4) (6 4)))
+    (1 4) (2 4)))
 
 ;; TODO: closed doors + keys
 
@@ -235,22 +237,27 @@
 
 (define draw-thing:skip '(#\_))
 
-(define (draw-thing thing rect textures)
+(define (draw-thing thing rect textures btns)
   (cond
    ((drawme? thing)
-    (draw-tile (cadr (assq (lref thing 1) textures)) (cddr thing) rect))
+    (draw-tile (cdr (assq (lref thing 1) textures)) (cddr thing) rect))
    ((button? thing)
-    (draw-rectangle rect pink))
+    (draw-tile (cdr (assq 'bg textures)) '(8 0) rect)
+    (draw-tile (cdr (assq 'edg textures)) '(6 8) rect))
    ((button-target? thing)
-    (draw-rectangle rect orange))
+    (if (caddr (assq (cadr thing) btns))
+        (begin
+          (draw-tile (cdr (assq 'bg textures)) '(8 0) rect)
+          (draw-tile (cdr (assq 'door textures)) '(4 4) rect))  ;; door open
+        (draw-tile (cdr (assq 'door textures)) '(3 4) rect)))   ;; door closed
    ((list? thing) ;; catch-all list error thinghy
     (maybe-error "cannot draw-thing" thing))
    ((or (= thing #\space) (= thing #\@)
         (door-ending? thing) (= thing #\#))
-    (draw-tile (cadr (assq 'bg textures)) '(8 0) rect))
-   ((= thing #\=) (draw-tile (cadr (assq 'door textures)) '(2 3) rect))
-   ;; ((= thing #\|) (draw-tile (cadr (assq 'door textures)) (car doors-closed) rect))
-   ((door? thing) (draw-tile (cadr (assq 'door textures)) (door-tile thing) rect))
+    (draw-tile (cdr (assq 'bg textures)) '(8 0) rect))
+   ((= thing #\=) (draw-tile (cdr (assq 'door textures)) '(2 3) rect))
+   ;; ((= thing #\|) (draw-tile (cdr (assq 'door textures)) (car doors-closed) rect))
+   ((door? thing) (draw-tile (cdr (assq 'door textures)) (door-tile thing) rect))
    ((and (>= thing #\A) (<= thing #\Z)) 0)
 
    ((has? draw-thing:skip thing) 0)
@@ -258,13 +265,13 @@
     (maybe-error "cannot draw-thing" (string thing)))))
 
 (define iota-length-map (iota 0 1 (length Map)))
-(define (draw-map textures)
+(define (draw-map textures buttons)
   (for-each
    (λ (n)
      (let ((line (lref Map n))
            (y (* grid-size n)))
        (for-each
-        (λ (v) (draw-thing (lref line v) (list (* grid-size v) y grid-size grid-size) textures))
+        (λ (v) (draw-thing (lref line v) (list (* grid-size v) y grid-size grid-size) textures buttons))
         (iota 0 1 (length line)))))
    iota-length-map))
 
@@ -381,7 +388,7 @@
   (for-each
    (λ (b)
      (draw-tile
-      (cadr (assq 'bg textures))
+      (cdr (assq 'bg textures))
       '(0 18)
       (list (+ 4 (real-v (car b)))
             (+ 4 (real-v (cadr b)))
@@ -394,7 +401,7 @@
    (λ (y)
      (for-each
       (λ (x)
-        (draw-tile (cadr (assq 'door txts)) '(2 0) (list x y grid-size grid-size)))
+        (draw-tile (cdr (assq 'door txts)) '(2 0) (list x y grid-size grid-size)))
       (iota 0 grid-size width)))
    (iota 0 grid-size height)))
 
@@ -408,18 +415,23 @@
       (mvblock . ,snd-mvblock)
       (undo    . ,snd-undo))))
 
+(define (load-textures)
+  (let ((door-tiles (image->texture (list->image ".png" door-f)))
+        (bg-tiles   (image->texture (list->image ".gif" bg-f)))
+        (edg-tiles  (image->texture (list->image ".png" edg-f))))
+    `((bg   . ,bg-tiles)
+      (door . ,door-tiles)
+      (edg  . ,edg-tiles))))
+
 (define (main _)
   (set-target-fps! 30)
   (with-window
    width height "λ-test"
    (let* ((_ (init-audio-device)) ;; lol!
           (font (bytevector->font font-f ".ttf" 64 1024))
-          (door-tiles (image->texture (list->image ".gif" door-f)))
-          (bg-tiles   (image->texture (list->image ".gif" bg-f)))
           (sounds (load-sounds))
-          (textures `((bg   ,bg-tiles)
-                      (door ,door-tiles))))
-     (for-each (λ (t) (set-texture-filter! (cadr t) texture-filter-bilinear)) textures)
+          (textures (load-textures)))
+     (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-bilinear)) textures)
      (let loop ((ppos initial-player-pos)
                 (camera-pos (real-p initial-player-pos))
                 (key-queue ())
@@ -447,7 +459,7 @@
            camera
            (begin ;; TODO: ugly hack - fix with-camera2d macro
              (when debug (draw-grid-lines))
-             (draw-map textures)
+             (draw-map textures buttons)
              (draw-blocks blocks textures)
              (draw-player ppos)
              (draw-text font "helo" '(0 0) 64 0 white)))

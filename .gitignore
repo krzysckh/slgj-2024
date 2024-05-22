@@ -7,3 +7,5 @@
 *.wasm
 *-linux-gnu
 *.a
+*.zip
+build/
