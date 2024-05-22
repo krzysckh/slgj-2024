@@ -16,7 +16,9 @@ jobs:
       - name: Setup wine
         shell: bash
         run: |
+          sudo add-apt-repository universe
           sudo dpkg --add-architecture i386
+          sudo apt update
           sudo apt install -y wine wine32
       - name: Build slgj-2024
         shell: bash
