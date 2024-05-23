@@ -277,8 +277,7 @@
    (else
     (maybe-error "cannot draw-thing" (string thing)))))
 
-(define iota-length-map (iota 0 1 (length Map)))
-(define (draw-map textures buttons)
+(define (draw-map ppos textures buttons)
   (for-each
    (λ (n)
      (let ((line (lref Map n))
@@ -286,7 +285,7 @@
        (for-each
         (λ (v) (draw-thing (lref line v) (list (* grid-size v) y grid-size grid-size) textures buttons))
         (iota 0 1 (length line)))))
-   iota-length-map))
+   (iota (max 0 (- (cadr ppos) 16)) 1 (min (length Map) (+ (cadr ppos) 16)))))
 
 (define (draw-player pos)
   (draw-rectangle-rounded
@@ -483,7 +482,7 @@
            camera
            (begin ;; TODO: ugly hack - fix with-camera2d macro
              (when debug (draw-grid-lines))
-             (draw-map textures buttons)
+             (draw-map ppos textures buttons)
              (draw-blocks blocks textures)
              (draw-player ppos)))
 
