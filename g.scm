@@ -14,6 +14,7 @@
 (define snd-btndown-f (list->bytevector (file->list "assets/btndown.wav")))
 (define snd-mvblock-f (list->bytevector (file->list "assets/blockmove.wav")))
 (define snd-undo-f    (list->bytevector (file->list "assets/undo.wav")))
+(define snd-door-f    (list->bytevector (file->list "assets/door.wav")))
 
 (define additional-rand-blocks '((5 8) (8 8)))
 
@@ -21,29 +22,22 @@
 (define nono-blocks    (list #\= #\|))
 (define replace-blocks (list #\= #\space))
 
-(define (door? c)
-  (and (>= c #\a) (<= c #\z)))
+(define (symthing? sym)
+  (λ (thing)
+    (if (symbol? (car* thing))
+        (eqv? (car* thing) sym)
+        #f)))
 
-(define (door-ending? c)
-  (and (>= c #\A) (<= c #\Z)))
+(define drawme?         (symthing? 'drawme))
+(define button?         (symthing? 'btn))
+(define button-target?  (symthing? 'btn-target))
+(define !button-target? (symthing? '!btn-target))
+(define normal-text?    (symthing? '%-text))
+(define small-text?     (symthing? '^-text))
+(define (door? c) (and (>= c #\a) (<= c #\z)))
+(define (door-ending? c) (and (>= c #\A) (<= c #\Z)))
 
-;; drawme format: (drawme sym texture-x texture-y)
-(define (drawme? thing)
-  (if (symbol? (car* thing))
-      (eqv? (car* thing) 'drawme)
-      #f))
-
-;; button
-(define (button? thing)
-  (if (symbol? (car* thing))
-      (eqv? (car* thing) 'btn)
-      #f))
-
-;; button-target
-(define (button-target? thing)
-  (if (symbol? (car* thing))
-      (eqv? (car* thing) 'btn-target)
-      #f))
+(define (aq sym v) (cdr* (assq sym v)))
 
 (define (fix-length m ml)
   (append m (make-list (- ml (length m)) #\space)))
@@ -85,13 +79,22 @@
            (m (floodfill-emptyness m `(,(+ (car pt) 1) . ,(cdr pt)))))
       m))))
 
-(define (find-buttons l)
+(define (gettext c l acc)
+  (if (eqv? c (car l))
+      (values l (list->string acc))
+      (gettext c (cdr l) (append acc `(,(car l))))))
+
+(define (find-multichar l)
   (let loop ((l l) (acc ()))
     (cond
      ((null? l) acc)
      ((list? (car l)) (loop (cdr l) (append acc (list (car l)))))
      ((= (car l) #\.) (loop (cddr l) (append acc (list `(btn ,(cadr l))))))
      ((= (car l) #\|) (loop (cddr l) (append acc (list `(btn-target ,(cadr l))))))
+     ((= (car l) #\!) (loop (cddr l) (append acc (list `(!btn-target ,(cadr l))))))
+     ((has? '(#\^ #\%) (car l))
+      (lets ((ls s (gettext (car l) (cdr l) ())))
+        (loop (cdr ls) (append acc (list `(,(string->symbol (string-append (string (car l)) "-text")) ,s))))))
      (else
       (loop (cdr l) (append acc (list (car l))))))))
 
@@ -103,7 +106,7 @@
          (m (map (λ (x) (fix-length x ml)) m)) ;
          (m (append (list (make-list ml #\space)) m (list (make-list ml #\space))))
          (m (add-random-blocks m))
-         (m (map find-buttons m))
+         (m (map find-multichar m))
          (m (floodfill-emptyness m '(0 . 0))))
     m))
 
@@ -240,24 +243,34 @@
 (define (draw-thing thing rect textures btns)
   (cond
    ((drawme? thing)
-    (draw-tile (cdr (assq (lref thing 1) textures)) (cddr thing) rect))
+    (draw-tile (aq (lref thing 1) textures) (cddr thing) rect))
    ((button? thing)
-    (draw-tile (cdr (assq 'bg textures)) '(8 0) rect)
-    (draw-tile (cdr (assq 'edg textures)) '(6 8) rect))
+    (draw-tile (aq 'bg textures) '(8 0) rect)
+    (draw-tile (aq 'edg textures) '(6 8) rect))
    ((button-target? thing)
     (if (caddr (assq (cadr thing) btns))
         (begin
-          (draw-tile (cdr (assq 'bg textures)) '(8 0) rect)
-          (draw-tile (cdr (assq 'door textures)) '(4 4) rect))  ;; door open
-        (draw-tile (cdr (assq 'door textures)) '(3 4) rect)))   ;; door closed
+          (draw-tile (aq 'bg textures) '(8 0) rect)
+          (draw-tile (aq 'door textures) '(4 4) rect))  ;; door open
+        (draw-tile (aq 'door textures) '(3 4) rect)))   ;; door closed
+   ((!button-target? thing) ;; like button-target, but the other way around
+    (if (caddr (assq (cadr thing) btns))
+        (draw-tile (aq 'door textures) '(3 4) rect)
+        (begin
+          (draw-tile (aq 'bg textures) '(8 0) rect)
+          (draw-tile (aq 'door textures) '(4 4) rect))))
+   ((normal-text? thing)
+    (draw-text (aq 'font textures) (cadr thing) `(,(car rect) ,(cadr rect)) 32  0 white))
+   ((small-text? thing)
+    (draw-text (aq 'font textures) (cadr thing) `(,(car rect) ,(cadr rect)) 16 0 white))
    ((list? thing) ;; catch-all list error thinghy
     (maybe-error "cannot draw-thing" thing))
    ((or (= thing #\space) (= thing #\@)
         (door-ending? thing) (= thing #\#))
-    (draw-tile (cdr (assq 'bg textures)) '(8 0) rect))
-   ((= thing #\=) (draw-tile (cdr (assq 'door textures)) '(2 3) rect))
+    (draw-tile (aq 'bg textures) '(8 0) rect))
+   ((= thing #\=) (draw-tile (aq 'door textures) '(2 3) rect))
    ;; ((= thing #\|) (draw-tile (cdr (assq 'door textures)) (car doors-closed) rect))
-   ((door? thing) (draw-tile (cdr (assq 'door textures)) (door-tile thing) rect))
+   ((door? thing) (draw-tile (aq 'door textures) (door-tile thing) rect))
    ((and (>= thing #\A) (<= thing #\Z)) 0)
 
    ((has? draw-thing:skip thing) 0)
@@ -326,6 +339,8 @@
      ((button? (lref (lref Map y) x)) blocks)
      ((button-target? (lref (lref Map y) x))
       (if (dispatch-move:button-door-open? ppos buttons) blocks #f))
+     ((!button-target? (lref (lref Map y) x))
+      (if (dispatch-move:button-door-open? ppos buttons) #f blocks))
      ((list? (lref (lref Map y) x)) #f)
      ((has? nono-blocks (lref (lref Map y) x)) #f)
      (else
@@ -347,7 +362,7 @@
            (let ((pressed? (has? poss (cadr b)))
                  (was-pressed? (caddr b)))
              (when (and (not was-pressed?) pressed?)
-               (play-sound (cdr (assq 'btndown sounds))))
+               (play-sound (aq 'btndown sounds)))
              (list (car b) (cadr b) pressed?)))
          buttons)))
 
@@ -358,7 +373,7 @@
          (b (dispatch-move:ppos-legal? +∆ ∆ blocks buttons -1))
          (btns (dispatch-move:update-buttons buttons pos blocks sounds)))
     (when (and b (not (equal? blocks b)))
-      (play-sound (cdr (assq 'mvblock sounds))))
+      (play-sound (aq 'mvblock sounds)))
     (if b
         (values +∆ q b btns)
         (values pos q blocks buttons)
@@ -380,15 +395,19 @@
          (else
         (loop (key-pressed) acc))))))
 
-(define (maybe-door ppos)
+(define (maybe-door ppos sounds)
   (let ((p (assoc ppos doors)))
-    (if p (cadr p) ppos)))
+    (if p
+        (begin
+          (play-sound (aq 'door sounds))
+          (cadr p))
+        ppos)))
 
 (define (draw-blocks blocks textures)
   (for-each
    (λ (b)
      (draw-tile
-      (cdr (assq 'bg textures))
+      (aq 'bg textures)
       '(0 18)
       (list (+ 4 (real-v (car b)))
             (+ 4 (real-v (cadr b)))
@@ -401,7 +420,7 @@
    (λ (y)
      (for-each
       (λ (x)
-        (draw-tile (cdr (assq 'door txts)) '(2 0) (list x y grid-size grid-size)))
+        (draw-tile (aq 'door txts) '(2 0) (list x y grid-size grid-size)))
       (iota 0 grid-size width)))
    (iota 0 grid-size height)))
 
@@ -410,16 +429,22 @@
 (define (load-sounds)
   (let ((snd-btndown (wave->sound (bytevector->wave ".wav" snd-btndown-f)))
         (snd-mvblock (wave->sound (bytevector->wave ".wav" snd-mvblock-f)))
-        (snd-undo    (wave->sound (bytevector->wave ".wav" snd-undo-f))))
+        (snd-undo    (wave->sound (bytevector->wave ".wav" snd-undo-f)))
+        (snd-door    (wave->sound (bytevector->wave ".wav" snd-door-f)))
+        )
     `((btndown . ,snd-btndown)
       (mvblock . ,snd-mvblock)
-      (undo    . ,snd-undo))))
+      (undo    . ,snd-undo)
+      (door    . ,snd-door)
+      )))
 
 (define (load-textures)
-  (let ((door-tiles (image->texture (list->image ".png" door-f)))
+  (let ((font (bytevector->font font-f ".ttf" 64 1024))
+        (door-tiles (image->texture (list->image ".png" door-f)))
         (bg-tiles   (image->texture (list->image ".gif" bg-f)))
         (edg-tiles  (image->texture (list->image ".png" edg-f))))
-    `((bg   . ,bg-tiles)
+    `((font . ,font)
+      (bg   . ,bg-tiles)
       (door . ,door-tiles)
       (edg  . ,edg-tiles))))
 
@@ -428,7 +453,6 @@
   (with-window
    width height "λ-test"
    (let* ((_ (init-audio-device)) ;; lol!
-          (font (bytevector->font font-f ".ttf" 64 1024))
           (sounds (load-sounds))
           (textures (load-textures)))
      (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-bilinear)) textures)
@@ -442,13 +466,13 @@
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (queue:current-keys)))
               (ppos key-queue blocks buttons (dispatch-move ppos key-queue blocks buttons sounds))
-              (ppos (maybe-door ppos))
+              (ppos (maybe-door ppos sounds))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
               (ppos blocks undo (if (key-pressed? key-u)
                                     (let ((lu (lref undo (max 0 (- (length undo) 2)))))
-                                      (play-sound (cdr (assq 'undo sounds)))
+                                      (play-sound (aq 'undo sounds))
                                       (values (car lu) (cadr lu) (ldel undo (- (length undo) 1))))
                                     (values ppos blocks undo))))
          (draw
@@ -461,11 +485,10 @@
              (when debug (draw-grid-lines))
              (draw-map textures buttons)
              (draw-blocks blocks textures)
-             (draw-player ppos)
-             (draw-text font "helo" '(0 0) 64 0 white)))
+             (draw-player ppos)))
 
           (when debug
-            (draw-text font (str* buttons) '(0 0) 32 0 white))
+            (draw-text (aq 'font textures) (str* buttons) '(0 0) 32 0 white))
 
           ;; the shadow thingy
           (draw-rectangle
