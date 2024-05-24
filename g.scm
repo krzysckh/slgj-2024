@@ -141,9 +141,7 @@
 
 ;; c = char | (f(x) → #t|#f) → (...)
 (define (find-things c)
-  (let ((f (if (function? c)
-               c
-               (λ (x) (eqv? x c)))))
+  (let ((f (if (function? c) c (λ (x) (eqv? x c)))))
     (let loop ((x 0) (y 0) (acc ()))
       (cond
        ((>= y (length Map)) acc)
@@ -155,8 +153,10 @@
 (define (find-thing c)
   (car (find-things c)))
 
+(display "doors-all")
 (define doors-all
   (map (λ (c)
+         (display ".")
          (let ((p0 (find-things c))
                (p1 (find-things (- c 32))))
            (if (or (null? p0) (null? p1))
@@ -165,29 +165,34 @@
                                 (vec2dist (car p0) (cadr p1)))
                              (list (car p0) (car p1))
                              (list (car p0) (cadr p1))))
-
                      (t1 (if (> (vec2dist (cadr p0) (car p1))
                                 (vec2dist (cadr p0) (cadr p1)))
                              (list (cadr p0) (car p1))
                              (list (cadr p0) (cadr p1)))))
                  (list t0 t1)))))
        (iota #\a 1 (+ #\z 1))))
+(print "OK")
 
+(display "doors")
 (define doors
   (let loop ((d doors-all) (acc ()))
+    (display ".")
     (cond
      ((null? d) acc)
      ((null? (car d)) (loop (cdr d) acc))
      (else
       (loop (cdr d) (append acc (list (caar d)) (list (cadar d))))))))
+(print "OK")
 
 (define initial-blocks (find-things #\#))
-(define initial-button-states
-  (map (λ (v) (list (cadr (lref (lref Map (cadr v)) (car v))) v #f))
-       (find-things button?))) ;; #f = unpressed
 
-(print "door wormholes: " doors)
-(print "initial-button-states: " initial-button-states)
+(display "initial-button-states")
+(define initial-button-states
+  (map (λ (v)
+         (display ".")
+         (list (cadr (lref (lref Map (cadr v)) (car v))) v #f))
+       (find-things button?))) ;; #f = unpressed
+(print "OK")
 
 (define (maybe-error s . l)
   (print "maybe-error: " s)
