@@ -10,6 +10,7 @@
 (define bg-f   (list->bytevector (file->list "assets/AngbandTk/dg_grounds32.gif")))
 (define door-f (list->bytevector (file->list "assets/AngbandTk/dg_dungeon32.png")))
 (define edg-f  (list->bytevector (file->list "assets/AngbandTk/dg_edging232.png")))
+(define uniq-f (list->bytevector (file->list "assets/AngbandTk/dg_uniques32.gif")))
 
 (define snd-btndown-f (list->bytevector (file->list "assets/btndown.wav")))
 (define snd-mvblock-f (list->bytevector (file->list "assets/blockmove.wav")))
@@ -17,6 +18,7 @@
 (define snd-door-f    (list->bytevector (file->list "assets/door.wav")))
 
 (define additional-rand-blocks '((5 8) (8 8)))
+(define draw-around-size 16)
 
 ;; block player cannot move through
 (define nono-blocks    (list #\= #\|))
@@ -289,13 +291,11 @@
            (y (* grid-size n)))
        (for-each
         (λ (v) (draw-thing (lref line v) (list (* grid-size v) y grid-size grid-size) textures buttons))
-        (iota 0 1 (length line)))))
-   (iota (max 0 (- (cadr ppos) 16)) 1 (min (length Map) (+ (cadr ppos) 16)))))
+        (iota (max 0 (- (car ppos) draw-around-size)) 1 (min (+ (car ppos) draw-around-size) (length line))))))
+   (iota (max 0 (- (cadr ppos) draw-around-size)) 1 (min (length Map) (+ (cadr ppos) draw-around-size)))))
 
-(define (draw-player pos)
-  (draw-rectangle-rounded
-   (list (real-v (car pos)) (real-v (cadr pos)) grid-size grid-size)
-   0.6 10 red))
+(define (draw-player pos textures)
+  (draw-tile (aq 'uniq textures) '(0 0) `(,(real-v (car pos) ) ,(real-v (cadr pos)) ,grid-size ,grid-size)))
 
 (define (camera ppos camera-pos)
   (let* ((real-pos (real-p ppos))
@@ -447,11 +447,15 @@
   (let ((font (bytevector->font font-f ".ttf" 64 1024))
         (door-tiles (image->texture (list->image ".png" door-f)))
         (bg-tiles   (image->texture (list->image ".gif" bg-f)))
-        (edg-tiles  (image->texture (list->image ".png" edg-f))))
+        (edg-tiles  (image->texture (list->image ".png" edg-f)))
+        (uniq-tiles (image->texture (list->image ".gif" uniq-f)))
+        )
     `((font . ,font)
       (bg   . ,bg-tiles)
       (door . ,door-tiles)
-      (edg  . ,edg-tiles))))
+      (edg  . ,edg-tiles)
+      (uniq . ,uniq-tiles)
+      )))
 
 (define (main _)
   (set-target-fps! 30)
@@ -490,7 +494,7 @@
              (when debug (draw-grid-lines))
              (draw-map ppos textures buttons)
              (draw-blocks blocks textures)
-             (draw-player ppos)))
+             (draw-player ppos textures)))
 
           (when debug
             (draw-text (aq 'font textures) (str* buttons) '(0 0) 32 0 white))
