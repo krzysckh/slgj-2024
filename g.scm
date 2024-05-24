@@ -333,6 +333,7 @@
      ((< x 0) blocks)
      ((>= y (length Map)) blocks)
      ((>= x (length (lref Map y))) blocks) ;; overflowing lref
+     ((and (> bat -1) (door? (lref (lref Map (+ y (cadr ∆))) (+ x (car ∆))))) #f) ;; it is a block & trying to go through doors
      (bat (dispatch-move:ppos-legal?
            (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) buttons bat))
      ((button? (lref (lref Map y) x)) blocks)
