@@ -9,7 +9,7 @@ set -xe
 [ -f ol-rl-x86_64-linux-gnu ] || wget https://pub.krzysckh.org/ol-rl-x86_64-linux-gnu
 
 MAIN="puz.scm"
-TARGET="slgj2024"
+TARGET="puz"
 
 OLFLAGS="" # "-O2"
 

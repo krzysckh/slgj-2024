@@ -22,3 +22,4 @@ C        always open doors:
 !A       closeable doors, open only when button with corresponding id = A is not pressed
 %S%      normal text (with size = 32)
 ^S^      small text (with size = 16)
+$        The end
