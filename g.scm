@@ -38,6 +38,7 @@
 (define small-text?     (symthing? '^-text))
 (define (door? c) (and (>= c #\a) (<= c #\z)))
 (define (door-ending? c) (and (>= c #\A) (<= c #\Z)))
+(define (finish? c) (eqv? c #\$))
 
 (define (aq sym v) (cdr* (assq sym v)))
 
@@ -100,12 +101,11 @@
      (else
       (loop (cdr l) (append acc (list (car l))))))))
 
-;; TODO: point-in-polygon every point to find where to draw floor textures
 (define (load-map f)
   (let* ((m (map string->list (force-ll (lines (open-input-file "map.text")))))
          (m (map (λ (l) (append '(#\space) l '(#\space))) m))
          (ml (maxl (map length m)))
-         (m (map (λ (x) (fix-length x ml)) m)) ;
+         (m (map (λ (x) (fix-length x ml)) m))
          (m (append (list (make-list ml #\space)) m (list (make-list ml #\space))))
          (m (add-random-blocks m))
          (m (map find-multichar m))
@@ -132,8 +132,6 @@
     (0 2) (1 2) (3 2) (4 2)
     (4 3) (5 3) (7 3) (8 3)
     (1 4) (2 4)))
-
-;; TODO: closed doors + keys
 
 ;; (define doors-closed
 ;;   '((3 0)
@@ -278,6 +276,7 @@
    ((= thing #\=) (draw-tile (aq 'door textures) '(2 3) rect))
    ;; ((= thing #\|) (draw-tile (cdr (assq 'door textures)) (car doors-closed) rect))
    ((door? thing) (draw-tile (aq 'door textures) (door-tile thing) rect))
+   ((finish? thing) (draw-tile (aq 'door textures) '(7 4) rect))
    ((and (>= thing #\A) (<= thing #\Z)) 0)
 
    ((has? draw-thing:skip thing) 0)
@@ -313,6 +312,13 @@
 ;; TODO: particle w wątkach?
 ;; TODO: R - restart
 
+(define (finish)
+  (with-mainloop
+   (draw
+    (clear-background black)
+    (draw-text-simple "TODO: (finish)" '(0 0) 24 white)))
+  (exit-owl 0))
+
 (define (dispatch-move:find-block pos blocks . skip-n)
   (let ((skip (if (null? skip-n) -1 (car skip-n))))
     (let loop ((n 0) (blocks blocks))
@@ -338,6 +344,7 @@
      ((< x 0) blocks)
      ((>= y (length Map)) blocks)
      ((>= x (length (lref Map y))) blocks) ;; overflowing lref
+     ((finish? (lref (lref Map y) x)) (finish)) ;; TODO: assuming a block cannot be pushed to finish
      ((and (> bat -1) (door? (lref (lref Map (+ y (cadr ∆))) (+ x (car ∆))))) #f) ;; it is a block & trying to go through doors
      (bat (dispatch-move:ppos-legal?
            (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) buttons bat))

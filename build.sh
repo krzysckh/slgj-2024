@@ -2,22 +2,22 @@
 
 set -xe
 
-[ -f ol-rl.exe ] || wget https://pub.krzysckh.org/ol-rl.exe
+[ -f ol-rl.exe ]              || wget https://pub.krzysckh.org/ol-rl.exe
 [ -f libraylib5-winlegacy.a ] || wget https://pub.krzysckh.org/libraylib5-winlegacy.a
-[ -f libraylib5.a ] || wget https://pub.krzysckh.org/libraylib5.a
-[ -f libraylib5-web.a ] || wget https://pub.krzysckh.org/libraylib5-web.a
+[ -f libraylib5.a ]           || wget https://pub.krzysckh.org/libraylib5.a
+[ -f libraylib5-web.a ]       || wget https://pub.krzysckh.org/libraylib5-web.a
 [ -f ol-rl-x86_64-linux-gnu ] || wget https://pub.krzysckh.org/ol-rl-x86_64-linux-gnu
 
 MAIN="g.scm"
 TARGET="slgj2024"
 
-OLFLAGS="" # -O2?
+OLFLAGS="-O2"
 
 CC=clang
 MCC32=i686-w64-mingw32-gcc
 MCC=x86_64-w64-mingw32-gcc
 
-CFLAGS="-I/usr/local/include"
+CFLAGS="-O2 -I/usr/local/include"
 LDFLAGS="-L/usr/local/lib -lraylib -lm"
 
 rm -rf build
@@ -60,7 +60,13 @@ build_web() {
   mv "$TARGET-$ARCH.zip" build/
 }
 
+build_c() {
+  ./ol-rl-x86_64-linux-gnu $OLFLAGS -o "$TARGET.c" $MAIN
+  mv "$TARGET.c" build/
+}
+
 # build_local
 build_mingw32
 build_mingw
 build_web
+build_c
