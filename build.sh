@@ -8,6 +8,8 @@ set -xe
 [ -f libraylib5-web.a ]       || wget https://pub.krzysckh.org/libraylib5-web.a
 [ -f ol-rl-x86_64-linux-gnu ] || wget https://pub.krzysckh.org/ol-rl-x86_64-linux-gnu
 
+chmod +x ./ol-rl-x86_64-linux-gnu
+
 MAIN="puz.scm"
 TARGET="puz"
 
@@ -47,7 +49,6 @@ build_mingw() {
 }
 
 build_web() {
-  chmod +x ./ol-rl-x86_64-linux-gnu
   ./ol-rl-x86_64-linux-gnu $OLFLAGS -o $TARGET.c $MAIN
   ARCH=`emcc -dumpmachine`
   emcc -O1 -DPLATFORM_WEB -I/usr/local/include $TARGET.c \
