@@ -66,7 +66,7 @@ build_c() {
 }
 
 # build_local
+build_c # build C version first, as it is running a native executable and it will be the fastest to build the map cache
 build_mingw32
 build_mingw
 build_web
-build_c

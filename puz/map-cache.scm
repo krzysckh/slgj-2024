@@ -58,6 +58,7 @@
     (define (get-initial-player-pos Map) (find-thing #\@ Map))
 
     (define (load-map-from-cache fname)
+      (print "loading map data from " fname)
       (let* ((f (open-input-file fname))
              (sexp (read f)))
         (close-port f)

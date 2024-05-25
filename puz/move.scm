@@ -95,7 +95,7 @@
       (filter key-down? keys))
 
     (define (current-keys)
-      (if (key-down? key-left-control)
+      (if (or (key-down? key-left-control) (key-down? key-left-shift))
           (keys-down)
           (let loop ((kp (key-pressed)) (acc ()))
             (cond

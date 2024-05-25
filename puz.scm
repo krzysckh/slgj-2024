@@ -51,7 +51,7 @@
 (define (main _)
   (set-target-fps! 30)
   (with-window
-   width height "λ-test"
+   width height "puz"
    (let* ((_ (init-audio-device)) ;; lol!
           (sounds (load-sounds))
           (textures (load-textures))
