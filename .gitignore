@@ -9,3 +9,7 @@
 *.a
 *.zip
 build/
+maze*.text
+*-cache
+*.core
+a.out

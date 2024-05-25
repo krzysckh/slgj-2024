@@ -15,6 +15,7 @@
     real-v
     real-p
     aq
+    flatten
    )
 
   (begin
@@ -46,4 +47,12 @@
       (list (real-v (car v)) (real-v (cadr v))))
 
     (define (aq sym v) (cdr* (assq sym v)))
+
+    (define (flatten l)
+      (cond ((null? l) '())
+            ((pair? (car l))
+             (append (flatten (car l))
+                     (flatten (cdr l))))
+            (else (cons (car l) (flatten (cdr l))))))
+
     ))

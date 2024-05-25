@@ -66,6 +66,8 @@
             (begin
               (draw-tile (aq 'bg textures) '(8 0) rect)
               (draw-tile (aq 'door textures) '(4 4) rect))))
+       ((or (maze-start? thing) (maze-end? thing) (maze-end-of? thing))
+        (draw-tile (aq 'door textures) '(8 3) rect))
        ((normal-text? thing)
         (draw-text (aq 'font textures) (cadr thing) `(,(car rect) ,(cadr rect)) 32  0 white))
        ((small-text? thing)

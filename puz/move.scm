@@ -42,9 +42,15 @@
          ((>= y (length Map)) blocks)
          ((>= x (length (lref Map y))) blocks) ;; overflowing lref
          ((finish? (lref (lref Map y) x)) (finish-f)) ;; TODO: assuming a block cannot be pushed to finish
-         ((and (> bat -1) (door? (lref (lref Map (+ y (cadr ∆))) (+ x (car ∆))))) #f) ;; it is a block & trying to go through doors
+         ((and (> bat -1)
+               (let ((v (lref (lref Map (+ y (cadr ∆))) (+ x (car ∆)))))
+                 (or (door? v) (maze-start? v) (maze-end? v))))
+          #f) ;; it is a block & trying to go through doors
          (bat (ppos-legal?
                Map (vec2+ ppos ∆) ∆ (lset blocks bat (vec2+ ppos ∆)) buttons bat finish-f))
+         ((maze-start? (lref (lref Map y) x)) blocks)
+         ;; ((maze-end? (lref (lref Map y) x)) blocks)
+         ((maze-end-of? (lref (lref Map y) x)) blocks)
          ((button? (lref (lref Map y) x)) blocks)
          ((button-target? (lref (lref Map y) x))
           (if (button-door-open? Map ppos buttons) blocks #f))

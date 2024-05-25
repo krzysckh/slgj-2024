@@ -18,11 +18,15 @@
     small-text?
     door?
     door-ending?
+    maze-start?
+    maze-end?
+    maze-end-of?
     finish?
     aq
     load-map
     find-thing
     find-things
+    write-map
    )
 
   (begin
@@ -51,6 +55,10 @@
     (define !button-target? (symthing? '!btn-target))
     (define normal-text?    (symthing? '%-text))
     (define small-text?     (symthing? '^-text))
+    (define maze-start?     (symthing? 'maze-start))
+    (define maze-end?       (symthing? 'maze-end))
+    (define maze-end-of?    (symthing? 'maze-end-of))
+
     (define (door? c) (and (>= c #\a) (<= c #\z)))
     (define (door-ending? c) (and (>= c #\A) (<= c #\Z)))
     (define (finish? c) (eqv? c #\$))
@@ -108,6 +116,9 @@
          ((= (car l) #\.) (loop (cddr l) (append acc (list `(btn ,(cadr l))))))
          ((= (car l) #\|) (loop (cddr l) (append acc (list `(btn-target ,(cadr l))))))
          ((= (car l) #\!) (loop (cddr l) (append acc (list `(!btn-target ,(cadr l))))))
+         ((= (car l) #\&) (loop (cddr l) (append acc (list `(maze-start ,(cadr l))))))
+         ((= (car l) #\*) (loop (cddr l) (append acc (list `(maze-end ,(cadr l))))))
+         ((= (car l) #\-) (loop (cddr l) (append acc (list `(maze-end-of ,(cadr l))))))
          ((has? '(#\^ #\%) (car l))
           (lets ((ls s (gettext (car l) (cdr l) ())))
                 (loop (cdr ls) (append acc (list `(,(string->symbol (string-append (string (car l)) "-text")) ,s))))))
@@ -130,6 +141,8 @@
              (_ (print "load-map OK floodfill-emptyness")))
         m))
 
+    ;; c = char | (f(x) → #t|#f) → (...)
+    ;; c Map . max → (thing ...)
     (define (find-things c Map . lmax)
       (let ((f (if (function? c) c (λ (x) (eqv? x c))))
             (max (if (null? lmax) (<< 2 32) (car lmax))))
@@ -144,4 +157,16 @@
 
     (define (find-thing c Map)
       (car (find-things c Map)))
+
+    (define (write-map f m)
+      (for-each
+       (λ (l)
+         (for-each
+          (λ (c)
+            (let ((l (if (list? c) c (list c))))
+              (for-each (λ (c) (display (string c) f)) l)))
+          l)
+         (display "\n" f))
+       m))
+
     ))
