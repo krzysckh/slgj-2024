@@ -1,10 +1,27 @@
 okay alright
 
+Running instructions:
+
+* install ol-rl from https://github.com/krzysckh/raylib-owl/
+* run the game
+
+  $ ol-rl -r puz.scm
+
+Compilation instructions:
+
+* install ol-rl as above
+* compile the game
+
+  $ ol-rl -o puz.c puz.scm
+  $ cc -o puz puz.c -lraylib -lm -lpthread
+
+
 Map format:
 
 let C = /[a-zA-Z]/
 let A = /[!-~]/
-let S = /C*/
+let S = /[a-zA-Z]*/
+let N = /[0-9]+/
 
 char     description
 
@@ -23,3 +40,5 @@ C        always open doors:
 %S%      normal text (with size = 32)
 ^S^      small text (with size = 16)
 $        The end
+&N       start of a maze with map id = N
+*N       end of a maze with map id = N
