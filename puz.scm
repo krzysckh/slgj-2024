@@ -132,7 +132,7 @@
         (draw-text font start-btn-t (list (- (/ width 2) (/ sb-w 2)) (/ height 2)) 32 0 white)
         )
 
-       (when (and (mouse-btn-released? mouse-button-left) (collision-point-rect? (mouse-pos) start-rect))
+       (when (and (mouse-btn-down? mouse-button-left) (collision-point-rect? (mouse-pos) start-rect))
          (play-sound (aq 'door sounds))
          (puz sounds textures finish))
 
@@ -146,7 +146,7 @@
          (mm-btn-t "back to main menu")
          (mm-w mm-h (measure-text font mm-btn-t 32 0))
          (exit-btn-t "exit")
-         (exit-w exit-h (measure-text font exit-btn-t 32 0))) ;
+         (exit-w exit-h (measure-text font exit-btn-t 32 0)))
         (with-mainloop
          (let* ((md (mouse-delta))
                 (∆sum (+ (car md) (cdr md)))
@@ -175,11 +175,11 @@
             (draw-text font exit-btn-t (list (- (/ width 2) (/ exit-w 2)) (- height (/ height 4))) 32 0 white) ;
             )
 
-           (when (and (mouse-btn-released? mouse-button-left) (collision-point-rect? (mouse-pos) mm-rect))
+           (when (and (mouse-btn-down? mouse-button-left) (collision-point-rect? (mouse-pos) mm-rect))
              (play-sound (aq 'door sounds))
              (main-menu sounds textures finish))
 
-           (when (and (mouse-btn-released? mouse-button-left) (collision-point-rect? (mouse-pos) exit-rect))
+           (when (and (mouse-btn-down? mouse-button-left) (collision-point-rect? (mouse-pos) exit-rect))
              (play-sound (aq 'door sounds))
              (exit-owl 0))
 

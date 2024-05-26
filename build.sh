@@ -34,7 +34,7 @@ build_local() {
 
 build_mingw32() {
   ARCH=`$MCC32 -dumpmachine`
-  [ -f $TARGET-win.c ] || wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
+  wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
   $MCC32 -o "$TARGET-$ARCH.exe" $CFLAGS $TARGET-win.c -L. -l:libraylib5-winlegacy.a \
     -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static -mwindows
   mv "$TARGET-$ARCH.exe" build/
@@ -42,7 +42,7 @@ build_mingw32() {
 
 build_mingw() {
   ARCH=`$MCC -dumpmachine`
-  [ -f $TARGET-win.c ] || wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
+  wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
   $MCC -o "$TARGET-$ARCH.exe" $CFLAGS $TARGET-win.c -L. -l:libraylib5.a \
     -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static -mwindows
   mv "$TARGET-$ARCH.exe" build/
@@ -68,6 +68,7 @@ build_c() {
 }
 
 # build_local
+
 build_c # build C version first, as it is running a native executable and it will be the fastest to build the map cache
 build_mingw32
 build_mingw
