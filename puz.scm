@@ -33,7 +33,8 @@
 (define Maps-init
   (list
    (load-map-maybe-cache "map.text")
-   (at-runtime (create-maze 32 16 (time-ms) #\1))
+   (at-runtime (create-maze 8 8 (time-ms) #\1))
+   (at-runtime (create-maze 32 16 (time-ms) #\2))
    ))
 
 ;; TODO: particle w wątkach?
@@ -55,7 +56,7 @@
 ;; (play-sound (wave->sound (bytevector->wave ".wav" snd-btndown-f))))
 
 ;; TODO: reload blocks doors etc after changing the map
-(define (maybe-change-map Maps ppos mapq)
+(define (maybe-change-map Maps ppos mapq blocksq buttonsq)
   (let ((x (car ppos))
         (y (cadr ppos))
         (Map (aq 'map (lref Maps (car mapq)))))
@@ -64,14 +65,17 @@
        ((maze-start? v)
         (let* ((M (lref Maps (- (cadr v) 48)))
                (M (if (function? M) (M) M)))
-          (print (append `(,(- (cadr v) 48)) mapq))
-          (values (lset Maps (- (cadr v) 48) M) (aq 'initial-player-pos M) (append `(,(- (cadr v) 48)) mapq))))
+          (values (lset Maps (- (cadr v) 48) M)
+                  (aq 'initial-player-pos M)
+                  (append `(,(- (cadr v) 48)) mapq)
+                  (append '(()) blocksq)
+                  (append '(()) buttonsq))))
        ((maze-end-of? v)
         (let* ((M (aq 'map (lref Maps (cadr mapq))))
                (P (find-thing (λ (x) (equal? x (list 'maze-end (cadr v)))) M)))
-          (values Maps (list (+ (car P) 1) (cadr P)) (cdr mapq))))
+          (values Maps (list (+ (car P) 1) (cadr P)) (cdr mapq) (cdr blocksq) (cdr buttonsq))))
        (else
-        (values Maps ppos mapq))))))
+        (values Maps ppos mapq blocksq buttonsq))))))
 
 (define (main _)
   (set-target-fps! target-fps)
@@ -85,18 +89,20 @@
      (let loop ((ppos (aq 'initial-player-pos (car Maps-init)))
                 (camera-pos (real-p (aq 'initial-player-pos (car Maps-init))))
                 (key-queue ())
-                (blocks (aq 'initial-blocks (car Maps-init)))
-                (buttons (aq 'initial-button-states (car Maps-init)))
+                (blocksq (list (aq 'initial-blocks (car Maps-init))))
+                (buttonsq (list (aq 'initial-button-states (car Maps-init))))
                 (undo ())
                 (mapq `(0))
                 (Maps Maps-init)
                 (debug #f))
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (current-keys)))
-              (ppos key-queue blocks buttons
-                (dispatch-move (aq 'map (lref Maps (car mapq))) ppos key-queue blocks buttons sounds finish-f))
+              (blocks (car blocksq))
+              (buttons (car buttonsq))
               (ppos (maybe-door (aq 'doors (lref Maps (car mapq))) ppos sounds))
-              (Maps ppos mapq (maybe-change-map Maps ppos mapq))
+              (Maps ppos mapq blocksq buttonsq (maybe-change-map Maps ppos mapq blocksq buttonsq))
+              (ppos key-queue blocks buttons
+                (dispatch-move (aq 'map (lref Maps (car mapq))) ppos key-queue (car blocksq) (car buttonsq) sounds finish-f))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
@@ -104,7 +110,9 @@
                                          (let ((lu (lref undo (max 0 (- (length undo) 2)))))
                                            (play-sound (aq 'undo sounds))
                                            (values (car lu) (cadr lu) (caddr lu) (ldel undo (- (length undo) 1))))
-                                         (values ppos blocks mapq undo))))
+                                         (values ppos blocks mapq undo)))
+              (blocksq (lset blocksq 0 blocks))
+              (buttonsq (lset buttonsq 0 buttons)))
          (draw
           (clear-background black)
           (draw-background-textures textures)
@@ -135,8 +143,8 @@
                 ppos
                 camera-pos
                 key-queue
-                blocks
-                buttons
+                blocksq
+                buttonsq
                 undo
                 mapq
                 Maps
