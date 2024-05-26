@@ -13,6 +13,7 @@
    update-buttons
    dispatch-move
    maybe-door
+   maybe-change-map
    )
 
   (begin
@@ -118,5 +119,24 @@
               (cadr p))
             ppos)))
 
-
+    (define (maybe-change-map Maps ppos mapq blocksq buttonsq)
+      (let ((x (car ppos))
+            (y (cadr ppos))
+            (Map (aq 'map (lref Maps (car mapq)))))
+        (let ((v (lref (lref Map y) x)))
+          (cond
+           ((maze-start? v)
+            (let* ((M (lref Maps (- (cadr v) 48)))
+                   (M (if (function? M) (M) M)))
+              (values (lset Maps (- (cadr v) 48) M)
+                      (aq 'initial-player-pos M)
+                      (append `(,(- (cadr v) 48)) mapq)
+                      (append '(()) blocksq)
+                      (append '(()) buttonsq))))
+           ((maze-end-of? v)
+            (let* ((M (aq 'map (lref Maps (cadr mapq))))
+                   (P (find-thing (λ (x) (equal? x (list 'maze-end (cadr v)))) M)))
+              (values Maps (list (+ (car P) 1) (cadr P)) (cdr mapq) (cdr blocksq) (cdr buttonsq))))
+           (else
+            (values Maps ppos mapq blocksq buttonsq))))))
     ))
