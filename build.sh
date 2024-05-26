@@ -13,7 +13,7 @@ chmod +x ./ol-rl-x86_64-linux-gnu
 MAIN="puz.scm"
 TARGET="puz"
 
-OLFLAGS="" # "-O2"
+OLFLAGS="-O2"
 
 CC=clang
 MCC32=i686-w64-mingw32-gcc
@@ -34,25 +34,26 @@ build_local() {
 
 build_mingw32() {
   ARCH=`$MCC32 -dumpmachine`
-  wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
+  [ -f $TARGET-win.c ] || wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
   $MCC32 -o "$TARGET-$ARCH.exe" $CFLAGS $TARGET-win.c -L. -l:libraylib5-winlegacy.a \
-    -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static
+    -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static -mwindows
   mv "$TARGET-$ARCH.exe" build/
 }
 
 build_mingw() {
   ARCH=`$MCC -dumpmachine`
-  wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
+  [ -f $TARGET-win.c ] || wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
   $MCC -o "$TARGET-$ARCH.exe" $CFLAGS $TARGET-win.c -L. -l:libraylib5.a \
-    -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static
+    -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static -mwindows
   mv "$TARGET-$ARCH.exe" build/
 }
 
 build_web() {
   ./ol-rl-x86_64-linux-gnu $OLFLAGS -o $TARGET.c $MAIN
   ARCH=`emcc -dumpmachine`
-  emcc -O1 -DPLATFORM_WEB -I/usr/local/include $TARGET.c \
-       libraylib5-web.a -o $TARGET-$ARCH.html \
+  emcc -O2 -DPLATFORM_WEB -I/usr/local/include $TARGET.c \
+       libraylib5-web.a --shell-file emshell.html \
+       -o $TARGET-$ARCH.html \
        -s USE_GLFW=3 -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
        -s ALLOW_MEMORY_GROWTH=1 -s ASYNCIFY -s ASSERTIONS=0 || true
   mv $TARGET-$ARCH.html index.html
