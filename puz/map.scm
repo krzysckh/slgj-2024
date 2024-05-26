@@ -24,6 +24,7 @@
     finish?
     aq
     load-map
+    load-map-from-memory
     find-thing
     find-things
     write-map
@@ -82,12 +83,18 @@
                      (else
                       (f r (cdr line) (append acc (list (car line)))))))))
         (let loop ((r (seed->rands (time-ms))) (m m) (acc ()))
+          (draw
+           (clear-background black)
+           (draw-text-simple (string-append "loading map - add-random-blocks " (str* (length acc))) '(0 0) 24 white))
           (if (null? m)
               acc
               (lets ((r l (f r (car m) ())))
                     (loop r (cdr m) (append acc (list l))))))))
 
     (define (floodfill-emptyness m pt)
+      (draw
+       (clear-background black)
+       (draw-text-simple (string-append "loading map - floodfill-emptyness " (str* pt)) '(0 0) 24 white))
       (cond
        ((< (car pt) 0) m)
        ((< (cdr pt) 0) m)
@@ -110,6 +117,9 @@
 
     (define (find-multichar l)
       (let loop ((l l) (acc ()))
+        (draw
+         (clear-background black)
+         (draw-text-simple (string-append "loading map - finding multichar " (str* (length acc))) '(0 0) 24 white))
         (cond
          ((null? l) acc)
          ((list? (car l)) (loop (cdr l) (append acc (list (car l)))))
@@ -125,10 +135,8 @@
          (else
           (loop (cdr l) (append acc (list (car l))))))))
 
-    (define (load-map f)
-      (let* ((m (map string->list (force-ll (lines (open-input-file f)))))
-             (_ (print "load-map OK load file"))
-             (m (map (λ (l) (append '(#\space) l '(#\space))) m))
+    (define (load-map-from-memory m)
+      (let* ((m (map (λ (l) (append '(#\space) l '(#\space))) m))
              (ml (maxl (map length m)))
              (m (map (λ (x) (fix-length x ml)) m))
              (m (append (list (make-list ml #\space)) m (list (make-list ml #\space))))
@@ -140,6 +148,11 @@
              (m (floodfill-emptyness m '(0 . 0)))
              (_ (print "load-map OK floodfill-emptyness")))
         m))
+
+    (define (load-map f)
+      (let ((m (map string->list (force-ll (lines (open-input-file f))))))
+        (print "load-map OK load file")
+        (load-map-from-memory m)))
 
     ;; c = char | (f(x) → #t|#f) → (...)
     ;; c Map . max → (thing ...)
@@ -168,5 +181,4 @@
           l)
          (display "\n" f))
        m))
-
     ))

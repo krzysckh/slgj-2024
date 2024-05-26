@@ -18,16 +18,22 @@
 
 (define n-mazes 3)
 
-(create-maze 32 16 2137 #\1)
 ;; (create-maze 16 16 128 #\2)
 ;; (create-maze 32 32 999 #\3)
 
-(define Maps
+(define-syntax at-runtime
+  (syntax-rules ()
+    ((at-runtime mf)
+     (λ ()
+       (set-target-fps! (<< 2 32))
+       (let ((v (save-cache (load-map-from-memory mf) #f)))
+         (set-target-fps! target-fps)
+         v)))))
+
+(define Maps-init
   (list
    (load-map-maybe-cache "map.text")
-   (load-map-maybe-cache "maze1.text")
-   ;; (load-map-maybe-cache "maze2.text")
-   ;; (load-map-maybe-cache "maze3.text")
+   (at-runtime (create-maze 32 16 (time-ms) #\1))
    ))
 
 ;; TODO: particle w wątkach?
@@ -49,24 +55,26 @@
 ;; (play-sound (wave->sound (bytevector->wave ".wav" snd-btndown-f))))
 
 ;; TODO: reload blocks doors etc after changing the map
-(define (maybe-change-map ppos mapq)
+(define (maybe-change-map Maps ppos mapq)
   (let ((x (car ppos))
         (y (cadr ppos))
         (Map (aq 'map (lref Maps (car mapq)))))
     (let ((v (lref (lref Map y) x)))
       (cond
        ((maze-start? v)
-        (let ((M (lref Maps (- (cadr v) 48))))
-          (values (aq 'initial-player-pos M) (append `(,(- (cadr v) 48)) mapq))))
+        (let* ((M (lref Maps (- (cadr v) 48)))
+               (M (if (function? M) (M) M)))
+          (print (append `(,(- (cadr v) 48)) mapq))
+          (values (lset Maps (- (cadr v) 48) M) (aq 'initial-player-pos M) (append `(,(- (cadr v) 48)) mapq))))
        ((maze-end-of? v)
         (let* ((M (aq 'map (lref Maps (cadr mapq))))
                (P (find-thing (λ (x) (equal? x (list 'maze-end (cadr v)))) M)))
-          (values (list (+ (car P) 1) (cadr P)) (cdr mapq))))
+          (values Maps (list (+ (car P) 1) (cadr P)) (cdr mapq))))
        (else
-        (values ppos mapq))))))
+        (values Maps ppos mapq))))))
 
 (define (main _)
-  (set-target-fps! 30)
+  (set-target-fps! target-fps)
   (with-window
    width height "puz"
    (let* ((_ (init-audio-device)) ;; lol!
@@ -74,20 +82,21 @@
           (textures (load-textures))
           (finish-f (λ () (finish textures sounds)))) ;; wow
      (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-bilinear)) textures)
-     (let loop ((ppos (aq 'initial-player-pos (car Maps)))
-                (camera-pos (real-p (aq 'initial-player-pos (car Maps))))
+     (let loop ((ppos (aq 'initial-player-pos (car Maps-init)))
+                (camera-pos (real-p (aq 'initial-player-pos (car Maps-init))))
                 (key-queue ())
-                (blocks (aq 'initial-blocks (car Maps)))
-                (buttons (aq 'initial-button-states (car Maps)))
+                (blocks (aq 'initial-blocks (car Maps-init)))
+                (buttons (aq 'initial-button-states (car Maps-init)))
                 (undo ())
                 (mapq `(0))
+                (Maps Maps-init)
                 (debug #f))
        (lets ((ppos-prev ppos)
               (key-queue (append key-queue (current-keys)))
               (ppos key-queue blocks buttons
                 (dispatch-move (aq 'map (lref Maps (car mapq))) ppos key-queue blocks buttons sounds finish-f))
               (ppos (maybe-door (aq 'doors (lref Maps (car mapq))) ppos sounds))
-              (ppos mapq (maybe-change-map ppos mapq))
+              (Maps ppos mapq (maybe-change-map Maps ppos mapq))
               (debug (if (key-pressed? key-g) (not debug) debug))
               (camera camera-pos (camera ppos camera-pos))
               ;; maybe do undo?
@@ -130,6 +139,7 @@
                 buttons
                 undo
                 mapq
+                Maps
                 debug))))))))
 
 main

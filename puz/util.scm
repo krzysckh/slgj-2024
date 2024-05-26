@@ -16,11 +16,13 @@
     real-p
     aq
     flatten
+    target-fps
    )
 
   (begin
     (define width 640)
     (define height width)
+    (define target-fps 30)
     (define n-blocks 10)
     (define grid-size (/ width n-blocks))
 

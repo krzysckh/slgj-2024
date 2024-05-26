@@ -17,6 +17,9 @@
     (define (create-maze w h seed chr)
       (let ((m (let loop ((m (make-list (* h 2) (make-list (* w 2) #\=))) (x 0) (y 0) (r (seed->rands seed)) (ctr 0))
                       (let L ((m m))
+                        (draw
+                         (clear-background black)
+                         (draw-text-simple (string-append "generating maze " (str* x) " " (str* y)) '(0 0) 24 white))
                         (let* ((n0 (if (> x 0)             (list (- x 2) y) #f))
                                (n1 (if (< x (- (* w 2) 2)) (list (+ x 2) y) #f))
                                (n2 (if (> y 0)             (list x (- y 2)) #f))
@@ -47,7 +50,9 @@
                           (loop (+ x 1) y)))))
                    (m (map (λ (l) (map (λ (v) (if (list? v) (if (= (length v) 1) #\space v) v)) l)) m))
                    (m (map (λ (l) (append '(#\=) l '(#\=))) m))
-                   (m (append (list (make-list (+ (* w 2) 2) #\=)) m (list (make-list (+ (* w 2) 2) #\=)))))
-              (write-map (open-output-file (string-append "maze" (string chr) ".text")) m))))
+                   (m (append (list (make-list (+ (* w 2) 2) #\=)) m (list (make-list (+ (* w 2) 2) #\=))))
+                   (m (map flatten m)))
+              m)))
+              ;; (write-map (open-output-file (string-append "maze" (string chr) ".text")) m))))
 
     ))

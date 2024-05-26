@@ -9,12 +9,16 @@
 
   (export
    load-map-maybe-cache
+   save-cache
    )
 
   (begin
     (define (get-doors Map)
       (display "doors-all")
       (let ((doors-all (map (λ (c)
+                              (draw
+                               (clear-background black)
+                               (draw-text-simple (string-append "loading map - get-doors-all " (string c)) '(0 0) 24 white))
                               (display (string c))
                               (let ((p0 (find-things c Map 2)))
                                 (if (null? p0)
@@ -35,6 +39,9 @@
         (print "OK")
         (display "doors")
         (let ((v (let loop ((d doors-all) (acc ()))
+                   (draw
+                    (clear-background black)
+                    (draw-text-simple (string-append "loading map - get-doors " (str* (car* d))) '(0 0) 24 white))
                    (display ".")
                    (cond
                     ((null? d) acc)
@@ -49,6 +56,9 @@
     (define (get-initial-button-states Map)
       (display "initial-button-states")
       (let ((v (map (λ (v)
+                      (draw
+                       (clear-background black)
+                       (draw-text-simple (string-append "loading map - get-initial-button-states " (str* v)) '(0 0) 24 white))
                       (display ".")
                       (list (cadr (lref (lref Map (cadr v)) (car v))) v #f))
                     (find-things button? Map)))) ;; #f = unpressed
@@ -65,17 +75,18 @@
         (exported-eval sexp *toplevel*)))
 
     (define (save-cache Map fname)
-      (let* ((cf (string-append fname "-cache"))
+      (let* ((cf (if fname (string-append fname "-cache") #f))
              (sexp (list
                     `(map                    . ,Map)
                     `(doors                  . ,(get-doors Map))
                     `(initial-blocks         . ,(get-initial-blocks Map))
                     `(initial-button-states  . ,(get-initial-button-states Map))
                     `(initial-player-pos     . ,(get-initial-player-pos Map))))
-             (f (open-output-file cf)))
+             (f (if cf (open-output-file cf) #f)))
         (print "save-cache to " cf)
-        (write-to f sexp)
-        (close-port f)
+        (when f
+          (write-to f sexp)
+          (close-port f))
         sexp))
 
     (define (load-map-maybe-cache f)
