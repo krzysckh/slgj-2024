@@ -4,9 +4,7 @@
  (owl toplevel)
  (owl lazy)
  (owl random)
- (raylib))
-
-(import
+ (raylib)
  (puz assets)
  (puz util)
  (puz map)
@@ -16,10 +14,9 @@
  (puz maze)
  )
 
-(define n-mazes 3)
-
-;; (create-maze 16 16 128 #\2)
-;; (create-maze 32 32 999 #\3)
+;; owl bug?
+(define a 'a)
+;; deleting this define causes owl to complain about lack of g5 lol lol
 
 (define-syntax at-runtime
   (syntax-rules ()
@@ -33,6 +30,7 @@
 (define Maps-init
   (list
    (load-map-maybe-cache "map.text")
+   ;; (load-map-maybe-cache "map.temp")
    (at-runtime (create-maze 8 8 (time-ms) #\1))
    (at-runtime (create-maze 32 16 (time-ms) #\2))
    ))
@@ -51,6 +49,7 @@
                (mapq `(0))
                (Maps Maps-init)
                (debug #f))
+      (update-music-stream (aq 'amb sounds))
       (lets ((ppos-prev ppos)
              (key-queue (append key-queue (current-keys)))
              (blocks (car blocksq))
@@ -92,13 +91,15 @@
 
             (let ((undo (if (equal? (last undo ()) (list ppos blocks mapq))
                             undo
-                            (append undo (list (list ppos blocks mapq))))))
+                            (begin
+                              (play-sound (aq 'walk sounds))
+                              (append undo (list (list ppos blocks mapq)))))))
               (if (window-should-close?)
                   0
                   (loop
                    ppos
                    camera-pos
-                   key-queue
+                   (take key-queue 4)
                    blocksq
                    buttonsq
                    undo
@@ -106,15 +107,19 @@
                    Maps
                    debug)))))))
 
-(define (main-menu sounds textures finish)
+(define (main-menu sounds textures finish skip-press)
   (lets ((font (aq 'font textures))
-         (_ (print "font: " font))
          (title "[puz]")
          (title-w title-h (measure-text font title 42 0))
          (start-btn-t "Start game")
          (sb-w sb-h (measure-text font start-btn-t 32 0)))
-    (print "in main-menu")
     (with-mainloop
+     (when skip-press
+       (let L ()
+         (if (mouse-btn-down? mouse-button-left)
+             (begin (draw 0) (L))
+             0)))
+
      (let* ((md (mouse-delta))
             (∆sum (+ (car md) (cdr md)))
             (start-rect (list (- (/ width 2) (/ sb-w 2) 16)
@@ -177,7 +182,7 @@
 
            (when (and (mouse-btn-down? mouse-button-left) (collision-point-rect? (mouse-pos) mm-rect))
              (play-sound (aq 'door sounds))
-             (main-menu sounds textures finish))
+             (main-menu sounds textures finish #t))
 
            (when (and (mouse-btn-down? mouse-button-left) (collision-point-rect? (mouse-pos) exit-rect))
              (play-sound (aq 'door sounds))
@@ -192,7 +197,11 @@
    (let* ((_ (init-audio-device))
           (sounds (load-sounds))
           (textures (load-textures)))
-     (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-bilinear)) textures)
-     (main-menu sounds textures finish))))
+     (set-master-volume! 0.3)
+     ;; (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-bilinear)) textures)
+     (for-each (λ (t) (set-texture-filter! (cdr t) texture-filter-point)) textures)
+     ;; hmmm idk which ones better
+     (play-music-stream (aq 'amb sounds))
+     (main-menu sounds textures finish #f))))
 
 main
