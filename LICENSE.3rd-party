@@ -1,7 +1,12 @@
 assets/proggy-square.ttf:
-  Tristan Grimmer (c) 2004, 2005 under the MIT License
+  Copyright (c) Tristan Grimmer 2004, 2005 under the MIT license
   [http://proggyfonts.net]
 
-assets/AngbandTK
-  David E. Gervais
-  https://opengameart.org/content/roguelike-tiles-large-collection
+assets/AngbandTK/:
+  Copyright (c) David E. Gervais under the CC-BY 3.0 license (https://creativecommons.org/licenses/by/3.0/)
+  With small edits:
+    * deleted background and added alpha channel for a few used textures.
+  [https://opengameart.org/content/roguelike-tiles-large-collection]
+
+the rest of the code and assets is:
+  Copyright (c) Krzysztof Michałczyk 2024 under terms described in the LICENSE file.
