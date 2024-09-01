@@ -20,6 +20,7 @@ MCC32=i686-w64-mingw32-gcc
 MCC=x86_64-w64-mingw32-gcc
 
 CFLAGS="-O2 -I/usr/local/include"
+CFLAGS32="-I/usr/local/include"
 LDFLAGS="-L/usr/local/lib -lraylib -lm"
 
 rm -rf build
@@ -35,7 +36,7 @@ build_local() {
 build_mingw32() {
   ARCH=`$MCC32 -dumpmachine`
   wine ol-rl.exe $OLFLAGS -o $TARGET-win.c $MAIN
-  $MCC32 -o "$TARGET-$ARCH.exe" $CFLAGS $TARGET-win.c -L. -l:libraylib5-winlegacy.a \
+  $MCC32 -o "$TARGET-$ARCH.exe" $CFLAGS32 $TARGET-win.c -L. -l:libraylib5-winlegacy.a \
     -lm -lopengl32 -lwinmm -lgdi32 -lws2_32 -static -mwindows
   mv "$TARGET-$ARCH.exe" build/
 }
